@@ -7,4 +7,5 @@ urlpatterns = [
     path('logout/', views.logout_view, name='logout'),
     path('register/', views.register_view, name='register'),
     path('protected/', views.ProtectedView.as_view(), name='protected'),
+    path('create_circle/', views.create_circles_view, name='create_circle')
 ]

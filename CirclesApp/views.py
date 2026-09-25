@@ -4,7 +4,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.contrib.auth.models import User
-from .forms import RegisterForm
+from . forms import RegisterForm, CircleForm
+from . models import Circle, Membership
 
 
 def register_view(request):
@@ -52,6 +53,20 @@ class ProtectedView(LoginRequiredMixin, View):
 
     def get(self, request):
         return render(request, 'registration/protected.html')
+
+@login_required
+def create_circles_view(request):
+    if request.method == "POST":
+        form = CircleForm(request.POST)
+        if form.is_valid():
+            circle = form.save()
+            Membership.objects.create(user = request.user, circle = circle, role = 'owner')
+            return redirect('home')
+    else:
+        form = CircleForm()
+
+    return render(request, 'circles_app/create_circle.html', {'form':form})
+
 
 
 

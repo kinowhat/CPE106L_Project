@@ -14,9 +14,16 @@
         <h2>Home</h2>
         <p>Welcome, {{request.user.username}}!</p>
         <a href="{% url 'protected' %}">Go to your protected page!</a>
-        <form method="post" action="{% url 'logout' %}">
+        <form method="POST" action="{% url 'logout' %}">
             {% csrf_token %}
             <button type="submit">Logout</button>
+        </form>
+
+    </div>
+    <div>
+        <form method = "POST" action="{% url 'create_circle' %}">
+            {% csrf_token %}
+            <button type = "submit">Create Circle</button>
         </form>
 
     </div>

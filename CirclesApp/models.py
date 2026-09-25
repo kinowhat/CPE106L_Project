@@ -6,9 +6,10 @@ def create_code():
     return secrets.token_urlsafe(6)
 
 class Circle(models.Model):
-    name = models.CharField(max_length=32)
+    circle_name = models.CharField(max_length=32)
     creation_date = models.DateTimeField(auto_now_add=True)
-    invite_code = models.CharField(max_length=12, unique=True, default=create_code() )
+    invite_code = models.CharField(max_length=12, unique=True, default=create_code )
+    circle_tag = models.CharField(max_length=64)
 
 class Membership(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

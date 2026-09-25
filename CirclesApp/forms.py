@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
+from . models import Circle, User
 
 class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
@@ -18,3 +19,9 @@ class RegisterForm(forms.ModelForm):
             raise forms.ValidationError("Passwords do not match!")
         return cleaned_data
 
+class CircleForm(forms.ModelForm):
+    class Meta:
+        model = Circle
+        fields = ['circle_name', 'circle_tag']
+
+    
