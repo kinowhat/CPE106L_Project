@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.contrib.auth.models import User
-from . forms import RegisterForm, CircleForm
+from . forms import RegisterForm, CircleForm, CalendarForm
 from . models import Circle, Membership, Event
 
 
@@ -70,7 +70,16 @@ def create_circles_view(request):
 
 @login_required
 def calendar_view(request):
-    pass
+    if request.method == "POST":
+        form = CalendarForm(request.POST)
+        if form.is_valid():
+            calendar = form.save(commit = False)
+            
+        return redirect('calendar')
+    else:
+        form = CalendarForm()
+    return render(request, 'circles_app/calendar.html', {'form':form})
+            
     
 
 

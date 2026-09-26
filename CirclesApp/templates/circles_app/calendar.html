@@ -12,7 +12,7 @@
 <body>
     <div class = "container">
         <h2>Your Calendar</h2>
-        <form method = "POST" action="{% url 'create_circle'%}">
+        <form method = "POST" action="{% url 'calendar'%}">
             {% csrf_token %}
             {{form.as_p}}
             <button type = 'submit'>Update your Calendar</button>

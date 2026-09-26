@@ -43,5 +43,12 @@
         </form>
 
     </div>
+    <div>
+        <form method = "POST" action="{% url 'calendar' %}">
+            {% csrf_token %}
+            <button type = "submit">Manage you Calendar</button>
+        </form>
+
+    </div>
 </body>
 </html>
