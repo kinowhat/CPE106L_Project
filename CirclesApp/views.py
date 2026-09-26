@@ -5,7 +5,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.contrib.auth.models import User
 from . forms import RegisterForm, CircleForm
-from . models import Circle, Membership
+from . models import Circle, Membership, Event
 
 
 def register_view(request):
@@ -45,7 +45,8 @@ def logout_view(request):
 
 @login_required
 def home_view(request):
-    return render(request, 'circles_app/home.html')
+    user_memberships = Membership.objects.filter(user = request.user)
+    return render(request, 'circles_app/home.html', {'memberships': user_memberships})
 
 class ProtectedView(LoginRequiredMixin, View):
     login_url = '/login/'
@@ -66,6 +67,11 @@ def create_circles_view(request):
         form = CircleForm()
 
     return render(request, 'circles_app/create_circle.html', {'form':form})
+
+@login_required
+def calendar_view(request):
+    pass
+    
 
 
 

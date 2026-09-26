@@ -20,6 +20,22 @@
         </form>
 
     </div>
+    {# CIRCLES LIST  #}
+    <div>
+        <p>Check on your circles!</p>
+
+        {% if memberships %} 
+            
+            {% for i in memberships %}
+
+                <p>{{i.circle.circle_name}}</p>
+
+            {% endfor %}
+        {% else %}
+        <p>No Circles yet! Join a Circle!</p>
+        {% endif %}
+    </div>
+
     <div>
         <form method = "POST" action="{% url 'create_circle' %}">
             {% csrf_token %}

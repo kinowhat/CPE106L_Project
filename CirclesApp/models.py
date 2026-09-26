@@ -18,4 +18,15 @@ class Membership(models.Model):
     class Meta:
         unique_together =("user", "circle")
 
+class Event(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    event_name = models.CharField(max_length=32)
+    event_description = models.TextField(max_length=300)
+
+    def __str__(self):
+        return f"{self.event_name} - {self.user.username}"
+    
+
 

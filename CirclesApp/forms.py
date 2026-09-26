@@ -1,6 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User
-from . models import Circle, User
+from . models import Circle, User, Event
 
 class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
@@ -23,5 +23,10 @@ class CircleForm(forms.ModelForm):
     class Meta:
         model = Circle
         fields = ['circle_name', 'circle_tag']
+
+class CalendarForm(forms.ModelForm)
+    class META:
+        model = Event
+        fields = ['start_time, end_time, event_name, event_description']
 
     
