@@ -32,7 +32,7 @@ class Event(models.Model):
     end_date = models.DateTimeField(default = localdate())
     start_time = models.TimeField(default=timezone.now)
     end_time = models.TimeField(default=get_end_of_day)
-    event_name = models.CharField(max_length=32)
+    event_name = models.CharField(max_length=32) 
     event_description = models.TextField()
 
     def __str__(self):

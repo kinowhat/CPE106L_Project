@@ -74,8 +74,10 @@ def calendar_view(request):
         form = CalendarForm(request.POST)
         if form.is_valid():
             calendar = form.save(commit = False)
-            
-        return redirect('calendar')
+            calendar.user = request.user
+            calendar.save()
+
+            return redirect('calendar')
     else:
         form = CalendarForm()
     return render(request, 'circles_app/calendar.html', {'form':form})

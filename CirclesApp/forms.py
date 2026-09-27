@@ -25,13 +25,12 @@ class CircleForm(forms.ModelForm):
         fields = ['circle_name', 'circle_tag']
 
 class CalendarForm(forms.ModelForm):
-    start_date = forms.DateTimeField(widget=forms.DateInput(attrs={'type': 'date'}))
-    end_date = forms.DateTimeField(widget=forms.DateInput(attrs={'type': 'date'}))
-    start_time = forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}))
-    end_time = forms.TimeField(widget=forms.TimeInput(attrs={'type': 'time'}))
+    start_date = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+    end_date = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+
 
     class Meta:
         model = Event
-        fields = ['start_date', 'end_date', 'start_time', 'end_time', 'event_name', 'event_description']
+        fields = ['start_date', 'end_date', 'event_name', 'event_description']
 
     
