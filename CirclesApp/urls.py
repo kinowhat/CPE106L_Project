@@ -8,5 +8,8 @@ urlpatterns = [
     path('register/', views.register_view, name='register'),
     path('protected/', views.ProtectedView.as_view(), name='protected'),
     path('create_circle/', views.create_circles_view, name='create_circle'),
-    path('calendar/', views.calendar_view, name='calendar')
+    path('calendar/', views.calendar_view, name='calendar'),
+    path('circles/<int:circle_id>/', views.circle_detail_view, name='circle_detail'),
+    path('join/<str:code>/', views.join_circle_view, name='join_circle'),
+    path('find_circle/', views.find_circle_view, name='find_circle'),
 ]

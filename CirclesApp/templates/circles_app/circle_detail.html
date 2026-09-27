@@ -1,0 +1,23 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{circle.circle_name}}</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'styles/styles.css' %}">
+
+</head>
+<body>
+    <h2>{{ circle.circle_name }}</h2>
+    <p>Invite code: {{ circle.invite_code }}</p>
+    <p>Invite link: <a href="{% url 'join_circle' circle.invite_code %}">{% url 'join_circle' circle.invite_code %}</a></p>
+    <h3>Members</h3>
+    <ul>
+        {% for i in memberships %}
+            <li>{{i.user.username}} ({{i.role}})</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

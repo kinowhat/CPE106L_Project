@@ -4,8 +4,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.contrib.auth.models import User
-from . forms import RegisterForm, CircleForm, CalendarForm
+from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm
 from . models import Circle, Membership, Event
+from django.shortcuts import get_object_or_404
+from django.http import Http404
+from django.contrib import messages
 
 
 def register_view(request):
@@ -46,7 +49,8 @@ def logout_view(request):
 @login_required
 def home_view(request):
     user_memberships = Membership.objects.filter(user = request.user)
-    return render(request, 'circles_app/home.html', {'memberships': user_memberships})
+    join_form = JoinCircleForm()
+    return render(request, 'circles_app/home.html', {'memberships': user_memberships, 'join_form':join_form})
 
 class ProtectedView(LoginRequiredMixin, View):
     login_url = '/login/'
@@ -84,8 +88,39 @@ def calendar_view(request):
     user_events = Event.objects.filter(user=request.user).order_by('start_time')
     return render(request, 'circles_app/calendar.html', {'form':form, 'events':user_events})
 
-    
-            
+
+@login_required
+def circle_detail_view(request, circle_id):
+    circle = get_object_or_404(Circle, id = circle_id)
+    is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
+    if not is_member:
+        raise Http404
+
+    memberships = circle.memberships.all()
+    return render(request, 'circles_app/circle_detail.html', {'circle':circle, 'memberships':memberships,})
+
+@login_required
+def join_circle_view(request, code):
+    circle = get_object_or_404(Circle, invite_code=code)
+    already_member = Membership.objects.filter(user=request.user, circle = circle).exists()
+    if request.method == "POST":
+        Membership.objects.get_or_create(user=request.user,circle=circle,defaults={'role': 'member'},)
+        return redirect('circle_detail', circle_id=circle.id)
+    return render(request, 'circles_app/join_preview.html', {'circle':circle, 'already_member':already_member})
+
+@login_required
+def find_circle_view(request):
+    if request.method == "POST":
+        form = JoinCircleForm(request.POST)
+        if form.is_valid():
+            code = form.cleaned_data['invite_code']
+            if Circle.objects.filter(invite_code=code).exists():
+                return redirect('join_circle', code=code)
+            else:
+                messages.error(request, "No circle found with that invite code.")
+        else:
+            messages.error(request, "Please enter an invite code.")
+    return redirect('home')
     
 
 

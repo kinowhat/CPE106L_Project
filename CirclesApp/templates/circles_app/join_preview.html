@@ -1,0 +1,24 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Join Circle</title>
+    <link rel="stylesheet" type="text/css" href="{% static 'styles/styles.css' %}">
+</head>
+<body>
+    <h2>{{ circle.circle_name }}</h2>
+
+    {% if already_member %}
+        <p>You're already a member of this circle.</p>
+        <a href="{% url 'circle_detail' circle.id %}">Go to circle</a>
+    {% else %}
+        <p>You've been invited to join <strong>{{ circle.circle_name }}</strong>.</p>
+        <form method="POST">
+            {% csrf_token %}
+            <button type="submit">Join Circle</button>
+        </form>
+    {% endif %}
+</body>
+</html>

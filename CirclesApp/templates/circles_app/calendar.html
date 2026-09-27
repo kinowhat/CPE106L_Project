@@ -25,8 +25,8 @@
             <ul>
                 {% for i in events %}
                 <li>
-                    <strong>{{i.event.name}}</strong> — {{ e.start_time|date:"M d, Y H:i"}} to {{ e.end_time|date:"M d, Y H:i" }}
-                    <p>{{e.event_description}}</p>                    
+                    <strong>{{i.event_name}}</strong> — {{ i.start_time|date:"M d, Y H:i"}} to {{ i.end_time|date:"M d, Y H:i" }}
+                    <p>{{i.event_description}}</p>                    
                 </li>
                 {% endfor %}
             </ul>
