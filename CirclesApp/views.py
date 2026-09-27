@@ -80,7 +80,11 @@ def calendar_view(request):
             return redirect('calendar')
     else:
         form = CalendarForm()
-    return render(request, 'circles_app/calendar.html', {'form':form})
+
+    user_events = Event.objects.filter(user=request.user).order_by('start_time')
+    return render(request, 'circles_app/calendar.html', {'form':form, 'events':user_events})
+
+    
             
     
 

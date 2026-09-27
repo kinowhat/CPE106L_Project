@@ -28,10 +28,8 @@ class Membership(models.Model):
 
 class Event(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    start_date = models.DateTimeField(default = localdate())
-    end_date = models.DateTimeField(default = localdate())
-    start_time = models.TimeField(default=timezone.now)
-    end_time = models.TimeField(default=get_end_of_day)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
     event_name = models.CharField(max_length=32) 
     event_description = models.TextField()
 

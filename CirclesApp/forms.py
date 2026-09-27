@@ -28,9 +28,16 @@ class CalendarForm(forms.ModelForm):
     start_date = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
     end_date = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
 
-
     class Meta:
         model = Event
         fields = ['start_date', 'end_date', 'event_name', 'event_description']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_date = cleaned_data.get('start_date')
+        end_date = cleaned_data.get('end_date')
+        if start_date and end_date and start_date >= end_date: 
+            raise forms.ValidationError("Start and End times are in the wrong order!")
+        return cleaned_data
 
     

@@ -18,5 +18,21 @@
             <button type = 'submit'>Update your Calendar</button>
         </form>
     </div>
+
+    <div class = "container">
+        <h3>Your Schedule</h3>
+        {% if events %}
+            <ul>
+                {% for i in events %}
+                <li>
+                    <strong>{{i.event.name}}</strong> — {{ e.start_time|date:"M d, Y H:i"}} to {{ e.end_time|date:"M d, Y H:i" }}
+                    <p>{{e.event_description}}</p>                    
+                </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No events added yet. Update your calendar!</p>
+        {% endif %}
+    </div>
 </body>
 </html>
