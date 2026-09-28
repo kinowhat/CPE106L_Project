@@ -9,6 +9,21 @@ from . models import Circle, Membership, Event
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.contrib import messages
+from datetime import timedelta, datetime, time
+from django.utils import timezone
+
+HOURS = range(0,24)
+
+def get_week_monday(request):
+    week_param = request.GET.get('week')
+    if week_param:
+        try:
+            day = datetime.strptime(week_param, '%Y-%m-%d').date()
+        except ValueError:
+            day = timezone.localdate
+    else:
+        day = timezone.localdate()
+        return day - timedelta(days=day.weekday())
 
 
 def register_view(request):
@@ -97,7 +112,42 @@ def circle_detail_view(request, circle_id):
         raise Http404
 
     memberships = circle.memberships.all()
-    return render(request, 'circles_app/circle_detail.html', {'circle':circle, 'memberships':memberships,})
+
+    monday = get_week_monday(request)
+    days = [monday + timedelta(days=i) for i in range(7)]
+
+    member_ids = Membership.objects.filter(circle=circle).values_list('user_id', flat=True)
+    total_members = member_ids.count()
+
+    week_start = timezone.make_aware(datetime.combine(days[0], time.min))
+    week_end = timezone.make_aware(datetime.combine(days[-1], time.max))
+
+    events = Event.objects.filter(
+        user_id__in=member_ids,
+        start_time__lt=week_end,
+        end_time__gt=week_start,
+    )
+
+    grid = []
+    for hour in HOURS:
+        cells = []
+        for day in days:
+            cell_start = timezone.make_aware(datetime.combine(day,time(hour=hour)))
+            cell_end = cell_start + timedelta(hours=1)
+            busy_users = {e.user_id for e in events if e.start_time < e.cell_end and cell_start < e.end_time}
+            free = total_members - len(busy_users)
+            ratio = free / total_members if total_members else 0
+            cells.append({'free':free, 'total': total_members, 'ratio':ratio})
+        grid.append({'hour':hour, 'cells':cells})
+
+    return render(request, 'circles_app/circle_detail.html', {
+        'circle':circle, 
+        'memberships':memberships,
+        'days':days,
+        'grid':grid,
+        'prev_week': monday - timedelta(days=7),
+        'next_week': monday + timedelta(days=7),
+        })
 
 @login_required
 def join_circle_view(request, code):

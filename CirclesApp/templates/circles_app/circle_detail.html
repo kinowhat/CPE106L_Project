@@ -13,11 +13,39 @@
     <h2>{{ circle.circle_name }}</h2>
     <p>Invite code: {{ circle.invite_code }}</p>
     <p>Invite link: <a href="{% url 'join_circle' circle.invite_code %}">{% url 'join_circle' circle.invite_code %}</a></p>
+    
     <h3>Members</h3>
     <ul>
         {% for i in memberships %}
             <li>{{i.user.username}} ({{i.role}})</li>
         {% endfor %}
     </ul>
+
+
+        <h3>Availability</h3>
+        <p>
+            <a href="?week={{ prev_week|date:'Y-m-d' }}">← Previous week</a> |
+            <a href="?week={{ next_week|date:'Y-m-d' }}">Next week →</a>
+        </p>
+        <table border="1" cellpadding="4">
+            <tr>
+                <th>Hour</th>
+                {% for day in days %}
+                    <th>{{ day|date:"D m/d" }}</th>
+                {% endfor %}
+            </tr>
+            {% for row in grid %}
+            <tr>
+                <td>{{ row.hour }}:00</td>
+                {% for cell in row.cells %}
+                    <td style="background: rgba(40,167,69,{{ cell.ratio|floatformat:2 }});">
+                        {{ cell.free }}/{{ cell.total }}
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </table>
+  
+        <a href="{% url 'home' %}">Back to Home</a>
 </body>
 </html>
