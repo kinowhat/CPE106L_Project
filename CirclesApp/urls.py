@@ -12,4 +12,7 @@ urlpatterns = [
     path('circles/<int:circle_id>/', views.circle_detail_view, name='circle_detail'),
     path('join/<str:code>/', views.join_circle_view, name='join_circle'),
     path('find_circle/', views.find_circle_view, name='find_circle'),
+    path('calendar/repeat/', views.add_repeating_event_view, name='add_repeating_event'),
+    path('circles/<int:circle_id>/propose/', views.propose_event_view, name='propose_event'),
+    path('proposals/<int:proposal_id>/vote/', views.vote_proposal_view, name='vote_proposal'),
 ]

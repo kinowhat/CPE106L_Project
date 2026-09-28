@@ -1,4 +1,5 @@
 {% load static %}
+{% load circle_extras %}
 
 <!DOCTYPE html>
 <html lang="en">
@@ -45,7 +46,38 @@
             </tr>
             {% endfor %}
         </table>
-  
+
+        <h3>Proposed Events</h3>
+        <p><a href="{% url 'propose_event' circle.id %}">Propose a new event</a></p>
+
+        {% for proposal in proposals %}
+            <div class="proposal">
+                <strong>{{ proposal.event_name }}</strong>
+                ({{ proposal.start_time|date:"M d, Y H:i" }} – {{ proposal.end_time|date:"M d, Y H:i" }})
+                <p>{{ proposal.event_description }}</p>
+                <p>{{ proposal.yes_votes }} yes / {{ proposal.no_votes }} no
+                   (needs a majority of {{ proposal.total_members }} members)</p>
+
+                {% if proposal.id in user_votes %}
+                    <p>Your vote: {{ user_votes|get_item:proposal.id }}</p>
+                {% else %}
+                    <form method="POST" action="{% url 'vote_proposal' proposal.id %}">
+                        {% csrf_token %}
+                        <button type="submit" name="choice" value="yes">Vote Yes</button>
+                        <button type="submit" name="choice" value="no">Vote No</button>
+                    </form>
+                {% endif %}
+            </div>
+        {% empty %}
+            <p>No events proposed yet.</p>
+        {% endfor %}
+
+        {% if messages %}
+            {% for message in messages %}
+                <p>{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+
         <a href="{% url 'home' %}">Back to Home</a>
 </body>
 </html>

@@ -4,26 +4,35 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.contrib.auth.models import User
-from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm
-from . models import Circle, Membership, Event
+from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm
+from . models import Circle, Membership, Event, ProposalVote
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.contrib import messages
 from datetime import timedelta, datetime, time
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 HOURS = range(0,24)
 
 def get_week_monday(request):
+
+    day = None
     week_param = request.GET.get('week')
     if week_param:
         try:
             day = datetime.strptime(week_param, '%Y-%m-%d').date()
         except ValueError:
-            day = timezone.localdate
-    else:
+            day = None
+    if day is None:
         day = timezone.localdate()
-        return day - timedelta(days=day.weekday())
+    return day - timedelta(days=day.weekday())
+
+def logout_view(request):
+    if request.method == "POST":
+        logout(request)
+        return redirect('login')
+    return redirect('home')
 
 
 def register_view(request):
@@ -40,39 +49,47 @@ def register_view(request):
     return render(request, 'accounts/register.html', {'form':form})
 
 def login_view(request):
-    error_message = None
 
+    error_message = None
+ 
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")
-        user = authenticate(request, username=username, password = password)
+        user = authenticate(request, username=username, password=password)
         if user is not None:
             login(request, user)
-            next_url = request.POST.get('next') or request.GET.get('next') or 'home'
+            next_url = request.POST.get('next') or request.GET.get('next')
+            # Only follow redirects that stay on this site (prevents open redirects)
+            if not next_url or not url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+            ):
+                next_url = 'home'
             return redirect(next_url)
         else:
             error_message = "Invalid Credentials"
     return render(request, 'accounts/login.html', {'error': error_message})
 
-def logout_view(request):
+
+def login_view(request):
+    error_message = None
+ 
     if request.method == "POST":
-        logout(request)
-        return redirect('login')
-    else:
-        return redirect('home')
+        username = request.POST.get("username")
+        password = request.POST.get("password")
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            next_url = request.POST.get('next') or request.GET.get('next')
+            # Only follow redirects that stay on this site (prevents open redirects)
+            if not next_url or not url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+            ):
+                next_url = 'home'
+            return redirect(next_url)
+        else:
+            error_message = "Invalid Credentials"
+    return render(request, 'accounts/login.html', {'error': error_message})
 
-@login_required
-def home_view(request):
-    user_memberships = Membership.objects.filter(user = request.user)
-    join_form = JoinCircleForm()
-    return render(request, 'circles_app/home.html', {'memberships': user_memberships, 'join_form':join_form})
-
-class ProtectedView(LoginRequiredMixin, View):
-    login_url = '/login/'
-    redirect_field_name = 'redirect_to'
-
-    def get(self, request):
-        return render(request, 'registration/protected.html')
 
 @login_required
 def create_circles_view(request):
@@ -152,11 +169,17 @@ def circle_detail_view(request, circle_id):
         for day in days:
             cell_start = timezone.make_aware(datetime.combine(day,time(hour=hour)))
             cell_end = cell_start + timedelta(hours=1)
-            busy_users = {e.user_id for e in events if e.start_time < e.cell_end and cell_start < e.end_time}
+            busy_users = {e.user_id for e in events if e.start_time < cell_end and cell_start < e.end_time}
             free = total_members - len(busy_users)
             ratio = free / total_members if total_members else 0
             cells.append({'free':free, 'total': total_members, 'ratio':ratio})
         grid.append({'hour':hour, 'cells':cells})
+
+    proposals = Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at')
+    user_votes = {
+        v.event_id: v.choice
+        for v in ProposalVote.objects.filter(user=request.user, event__circle=circle)
+    }
 
     return render(request, 'circles_app/circle_detail.html', {
         'circle':circle, 
@@ -165,6 +188,7 @@ def circle_detail_view(request, circle_id):
         'grid':grid,
         'prev_week': monday - timedelta(days=7),
         'next_week': monday + timedelta(days=7),
+        'proposals': proposals, 'user_votes': user_votes
         })
 
 @login_required
@@ -222,7 +246,87 @@ def add_repeating_event_view(request):
 
     return render(request, 'circles_app/add_repeating_event.html', {'form': form})
 
+@login_required
+def home_view(request):
+    user_memberships = Membership.objects.filter(user=request.user)
+    join_form = JoinCircleForm()
+    return render(request, 'circles_app/home.html',
+                  {'memberships': user_memberships, 'join_form': join_form})
+ 
+ 
+class ProtectedView(LoginRequiredMixin, View):
+    login_url = '/login/'
+ 
+    def get(self, request):
+        return render(request, 'registration/protected.html')
 
+@login_required
+def propose_event_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
+    if not is_member:
+        raise Http404
+
+    if request.method == "POST":
+        form = EventProposalForm(request.POST)
+        if form.is_valid():
+            proposal = form.save(commit=False)
+            proposal.circle = circle
+            proposal.proposed_by = request.user
+            proposal.status = 'pending'
+            proposal.user = None
+            proposal.save()
+            messages.success(request, "Event proposed! Circle members can now vote.")
+            return redirect('circle_detail', circle_id=circle.id)
+    else:
+        form = EventProposalForm()
+
+    return render(request, 'circles_app/propose_event.html', {'form': form, 'circle': circle})
+
+
+@login_required
+def vote_proposal_view(request, proposal_id):
+    proposal = get_object_or_404(Event, id=proposal_id, status='pending')
+    is_member = Membership.objects.filter(user=request.user, circle=proposal.circle).exists()
+    if not is_member:
+        raise Http404
+
+    if request.method == "POST":
+        choice = request.POST.get('choice')
+        if choice not in ('yes', 'no'):
+            messages.error(request, "Invalid vote.")
+            return redirect('circle_detail', circle_id=proposal.circle.id)
+
+        ProposalVote.objects.update_or_create(
+            event=proposal, user=request.user, defaults={'choice': choice}
+        )
+
+        if proposal.has_passed_threshold():
+            proposal.status = 'approved'
+            proposal.user = proposal.proposed_by
+            proposal.save()
+
+            members = Membership.objects.filter(circle=proposal.circle).exclude(
+                user=proposal.proposed_by
+            ).select_related('user')
+            for member in members:
+                Event.objects.get_or_create(
+                    user=member.user,
+                    circle=proposal.circle,
+                    start_time=proposal.start_time,
+                    end_time=proposal.end_time,
+                    event_name=proposal.event_name,
+                    defaults={
+                        'event_description': proposal.event_description,
+                        'status': 'approved',
+                        'proposed_by': proposal.proposed_by,
+                    },
+                )
+            messages.success(request, f"'{proposal.event_name}' passed and was added to everyone's calendar!")
+        else:
+            messages.success(request, "Vote recorded.")
+
+    return redirect('circle_detail', circle_id=proposal.circle.id)
 
 #Home View
 # Using the decorator

@@ -41,24 +41,61 @@ class CalendarForm(forms.ModelForm):
             raise forms.ValidationError("Start and End times are in the wrong order!")
         return cleaned_data
 
-class CalendarForm(EventForm):
+class CalendarForm(forms.ModelForm):
     WEEKDAY_CHOICES = [
         (0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'),
         (3, 'Thursday'), (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday'),
     ]
 
-    is_repeating = forms.BooleanField(required=False, label="Repeat this event")
-    weekdays = forms.MultipleChoiceField(choices=WEEKDAY_CHOICES, widget=forms.CheckboxSelectMultiple, required=False)
-    num_weeks = forms.IntegerField(required=False, min_value=1, max_value=52)
+    start_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+    end_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+    weekdays = forms.MultipleChoiceField(
+        choices=WEEKDAY_CHOICES,
+        widget=forms.CheckboxSelectMultiple,
+        required=False,
+        label="Repeat on",
+        )
+    num_weeks = forms.IntegerField(required=False, min_value=1, max_value=52, label="For how many weeks")
+
+    class Meta:
+        model = Event
+        fields = ['start_time', 'end_time', 'event_name', 'event_description']
 
     def clean(self):
-        cleaned_data = super().clean()   # runs EventForm's start/end check first
-        if cleaned_data.get('is_repeating'):
-            if not cleaned_data.get('weekdays'):
-                raise forms.ValidationError("Select at least one weekday to repeat on.")
-            if not cleaned_data.get('num_weeks'):
-                raise forms.ValidationError("Enter how many weeks to repeat.")
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        weekdays = cleaned_data.get('weekdays')
+        num_weeks = cleaned_data.get('num_weeks')
+
+        if start_time and end_time and start_time >= end_time:
+            raise forms.ValidationError("Start and End times are in the wrong order!")
+        if weekdays and not num_weeks:
+            raise forms.ValidationError("Enter how many weeks the event should repeat.")
+        if num_weeks and not weekdays:
+            raise forms.ValidationError("Choose which days the event repeats on.")
         return cleaned_data
 class JoinCircleForm(forms.Form):
     invite_code = forms.CharField(max_length=12, label = "Invite Code")
     
+class EventProposalForm(forms.ModelForm):
+    start_time = forms.DateTimeField(
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+    )
+    end_time = forms.DateTimeField(
+        input_formats=['%Y-%m-%dT%H:%M'],
+        widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
+    )
+
+    class Meta:
+        model = Event
+        fields = ['event_name', 'event_description', 'start_time', 'end_time']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        if start_time and end_time and start_time >= end_time:
+            raise forms.ValidationError("Start and End times are in the wrong order!")
+        return cleaned_data
