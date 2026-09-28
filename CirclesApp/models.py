@@ -31,8 +31,6 @@ class Event(models.Model):
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
     event_name = models.CharField(max_length=32) 
-    days_repeated = models.IntegerField(default=7)
-    weeks_count = models.IntegerField(default=1)
     event_description = models.TextField()
 
     def __str__(self):

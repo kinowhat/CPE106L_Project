@@ -92,17 +92,35 @@ def calendar_view(request):
     if request.method == "POST":
         form = CalendarForm(request.POST)
         if form.is_valid():
-            calendar = form.save(commit = False)
-            calendar.user = request.user
-            calendar.save()
-
+            weekdays = {int(d) for d in form.cleaned_data['weekdays']}
+            if weekdays:
+                start_dt = form.cleaned_data['start_time']
+                duration = form.cleaned_data['end_time'] - start_dt
+                first_day = start_dt.date()
+                created = 0
+                for offset in range(form.cleaned_data['num_weeks'] * 7):
+                    day = first_day + timedelta(days=offset)
+                    if day.weekday() in weekdays:
+                        occurrence_start = timezone.make_aware(datetime.combine(day, start_dt.time()))
+                        Event.objects.create(
+                            user=request.user,
+                            start_time=occurrence_start,
+                            end_time=occurrence_start + duration,
+                            event_name=form.cleaned_data['event_name'],
+                            event_description=form.cleaned_data['event_description'],
+                        )
+                        created += 1
+                messages.success(request, f"Added {created} events.")
+            else:
+                event = form.save(commit=False)
+                event.user = request.user
+                event.save()
             return redirect('calendar')
     else:
         form = CalendarForm()
 
     user_events = Event.objects.filter(user=request.user).order_by('start_time')
-    return render(request, 'circles_app/calendar.html', {'form':form, 'events':user_events})
-
+    return render(request, 'circles_app/calendar.html', {'form': form, 'events': user_events})
 
 @login_required
 def circle_detail_view(request, circle_id):
@@ -172,7 +190,37 @@ def find_circle_view(request):
             messages.error(request, "Please enter an invite code.")
     return redirect('home')
     
+@login_required
+def add_repeating_event_view(request):
+    if request.method == "POST":
+        form = RepeatingEventForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            selected_weekdays = {int(d) for d in data['weekdays']}
+            first_date = data['start_date']
+            num_days = data['num_weeks'] * 7
 
+            created_count = 0
+            for offset in range(num_days):
+                day = first_date + timedelta(days=offset)
+                if day.weekday() in selected_weekdays:
+                    start_dt = timezone.make_aware(datetime.combine(day, data['start_time']))
+                    end_dt = timezone.make_aware(datetime.combine(day, data['end_time']))
+                    Event.objects.create(
+                        user=request.user,
+                        start_time=start_dt,
+                        end_time=end_dt,
+                        event_name=data['event_name'],
+                        event_description=data['event_description'],
+                    )
+                    created_count += 1
+
+            messages.success(request, f"Created {created_count} events.")
+            return redirect('calendar')
+    else:
+        form = RepeatingEventForm()
+
+    return render(request, 'circles_app/add_repeating_event.html', {'form': form})
 
 
 

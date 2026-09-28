@@ -40,6 +40,25 @@ class CalendarForm(forms.ModelForm):
         if start_time and end_time and start_time >= end_time: 
             raise forms.ValidationError("Start and End times are in the wrong order!")
         return cleaned_data
+
+class CalendarForm(EventForm):
+    WEEKDAY_CHOICES = [
+        (0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'),
+        (3, 'Thursday'), (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday'),
+    ]
+
+    is_repeating = forms.BooleanField(required=False, label="Repeat this event")
+    weekdays = forms.MultipleChoiceField(choices=WEEKDAY_CHOICES, widget=forms.CheckboxSelectMultiple, required=False)
+    num_weeks = forms.IntegerField(required=False, min_value=1, max_value=52)
+
+    def clean(self):
+        cleaned_data = super().clean()   # runs EventForm's start/end check first
+        if cleaned_data.get('is_repeating'):
+            if not cleaned_data.get('weekdays'):
+                raise forms.ValidationError("Select at least one weekday to repeat on.")
+            if not cleaned_data.get('num_weeks'):
+                raise forms.ValidationError("Enter how many weeks to repeat.")
+        return cleaned_data
 class JoinCircleForm(forms.Form):
     invite_code = forms.CharField(max_length=12, label = "Invite Code")
     

@@ -33,6 +33,13 @@
         {% else %}
             <p>No events added yet. Update your calendar!</p>
         {% endif %}
+
+        {% if messages %}
+            {% for message in messages %}
+                <p>{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+
     </div>
 </body>
 </html>
