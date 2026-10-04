@@ -1,21 +1,11 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Propose Event - {{ circle.circle_name }}</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'styles/styles.css' %}">
-</head>
-<body>
-    <div class="container">
-        <h2>Propose an Event for {{ circle.circle_name }}</h2>
-        <form method="POST" action="{% url 'propose_event' circle.id %}">
-            {% csrf_token %}
-            {{ form.as_p }}
-            <button type="submit">Propose Event</button>
-        </form>
-        <p><a href="{% url 'circle_detail' circle.id %}">Back to {{ circle.circle_name }}</a></p>
-    </div>
-</body>
-</html>
+{% extends 'base.html' %}
+{% block title %}Propose Event{% endblock %}
+{% block content %}
+    <h2>Propose an Event for {{ circle.circle_name }}</h2>
+    <form method="POST" action="{% url 'propose_event' circle.id %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Propose Event</button>
+    </form>
+    <p><a href="{% url 'circle_detail' circle.id %}">Back to {{ circle.circle_name }}</a></p>
+{% endblock %}

@@ -1,46 +1,55 @@
-{% load static %}
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendar</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'styles/styles.css' %}">
-
-</head>
-<body>
-    <div class = "container">
-        <h2>Your Calendar</h2>
-        <form method = "POST" action="{% url 'calendar'%}">
-            {% csrf_token %}
-            {{form.as_p}}
-            <button type = 'submit'>Update your Calendar</button>
-        </form>
-    </div>
-
-    <div class = "container">
-        <h3>Your Schedule</h3>
-        {% if events %}
-            <ul>
-                {% for i in events %}
-                <li>
-                    <strong>{{i.event_name}}</strong> — {{ i.start_time|date:"M d, Y H:i"}} to {{ i.end_time|date:"M d, Y H:i" }}
-                    <p>{{i.event_description}}</p>                    
-                </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p>No events added yet. Update your calendar!</p>
-        {% endif %}
-
-        {% if messages %}
-            {% for message in messages %}
-                <p>{{ message }}</p>
-            {% endfor %}
-        {% endif %}
-
-    </div>
+{% extends 'base.html' %}
+{% block title %}Calendar{% endblock %}
+{% block content %}
+    <h2>Your Calendar</h2>
+    <form method="POST" action="{% url 'calendar' %}">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Update your Calendar</button>
+    </form>
     <a href="{% url 'import_calendar' %}">Import from Google Calendar</a>
-</body>
-</html>
+    <a href="{% url 'export_calendar' %}">Export Calendar (.ics)</a>
+    <h3>Week View</h3>
+    <p>
+        <a href="?week={{ prev_week|date:'Y-m-d' }}">← Previous week</a> |
+        <a href="?week={{ next_week|date:'Y-m-d' }}">Next week →</a>
+    </p>
+    <table border="1" cellpadding="4">
+        <tr>
+            <th>Hour</th>
+            {% for day in days %}<th>{{ day|date:"D m/d" }}</th>{% endfor %}
+        </tr>
+        {% for row in grid %}
+        <tr>
+            <td>{{ row.hour }}:00</td>
+            {% for cell in row.cells %}
+                <td style="{% if cell.events %}background:#cde;{% endif %}">
+                    {% for e in cell.events %}
+                        <div>
+                            <strong>{{ e.event_name }}</strong>
+                            {% if e.status == 'approved' and e.circle %}
+                                <em>(via {{ e.circle.circle_name }})</em>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h3>Your Schedule (list view)</h3>
+    {% if events %}
+        <ul>
+            {% for i in events %}
+            <li>
+                <strong>{{ i.event_name }}</strong> — {{ i.start_time|date:"M d, Y H:i" }} to {{ i.end_time|date:"M d, Y H:i" }}
+                <p>{{ i.event_description }}</p>
+                <a href="{% url 'edit_event' i.id %}">Edit</a> | <a href="{% url 'delete_event' i.id %}">Delete</a>
+            </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No events added yet. Update your calendar!</p>
+    {% endif %}
+{% endblock %}

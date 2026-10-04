@@ -1,0 +1,13 @@
+{% load static %}
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Delete Event</title>
+<link rel="stylesheet" href="{% static 'styles/styles.css' %}"></head>
+<body>
+    <h2>Delete "{{ event.event_name }}"?</h2>
+    <p>{{ event.start_time|date:"M d, Y H:i" }} to {{ event.end_time|date:"M d, Y H:i" }}</p>
+    <form method="POST">
+        {% csrf_token %}
+        <button type="submit">Yes, delete it</button>
+    </form>
+    <a href="{% url 'calendar' %}">Cancel</a>
+</body></html>

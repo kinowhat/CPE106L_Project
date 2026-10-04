@@ -86,3 +86,19 @@ class EventProposalForm(forms.ModelForm):
 
 class ICSUploadForm(forms.Form):
     ics_file = forms.FileField(label="Select a .ics file")
+
+class EventForm(forms.ModelForm):
+    start_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+    end_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
+
+    class Meta:
+        model = Event
+        fields = ['start_time', 'end_time', 'event_name', 'event_description']
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start_time = cleaned_data.get('start_time')
+        end_time = cleaned_data.get('end_time')
+        if start_time and end_time and start_time >= end_time:
+            raise forms.ValidationError("Start and End times are in the wrong order!")
+        return cleaned_data

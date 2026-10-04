@@ -1,19 +1,17 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views import View
 from django.contrib.auth.models import User
 from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm, ProfileForm
 from . models import Circle, Membership, Event, ProposalVote, UserProfile
 from django.shortcuts import get_object_or_404
-from django.http import Http404
+from django.http import Http404, HttpResponse
 from django.contrib import messages
 from datetime import timedelta, datetime, time
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.mail import send_mail
-from icalendar import Calendar as ICalCalendar
+from icalendar import Calendar as ICalCalendar, Event as ICalEvent
 
 HOURS = range(0,24)
 
@@ -125,11 +123,34 @@ def calendar_view(request):
                 event.user = request.user
                 event.save()
             return redirect('calendar')
-    else:
-        form = CalendarForm()
+        else:
+                form = CalendarForm()
 
-    user_events = Event.objects.filter(user=request.user).order_by('start_time')
-    return render(request, 'circles_app/calendar.html', {'form': form, 'events': user_events})
+        monday = get_week_monday(request)
+        days = [monday + timedelta(days=i) for i in range(7)]
+        week_start = timezone.make_aware(datetime.combine(days[0], time.min))
+        week_end = timezone.make_aware(datetime.combine(days[-1], time.max))
+
+        week_events = list(Event.objects.filter(
+            user=request.user, start_time__lt=week_end, end_time__gt=week_start,
+        ).select_related('circle'))
+
+        grid = []
+        for hour in HOURS:
+            cells = []
+            for day in days:
+                cell_start = timezone.make_aware(datetime.combine(day, time(hour=hour)))
+                cell_end = cell_start + timedelta(hours=1)
+                matches = [e for e in week_events if e.start_time < cell_end and cell_start < e.end_time]
+                cells.append({'events': matches, 'start': cell_start, 'end': cell_end})
+            grid.append({'hour': hour, 'cells': cells})
+
+        user_events = Event.objects.filter(user=request.user).order_by('start_time')
+        return render(request, 'circles_app/calendar.html', {
+            'form': form, 'events': user_events,
+            'grid': grid, 'days': days,
+            'prev_week': monday - timedelta(days=7), 'next_week': monday + timedelta(days=7),
+        })
 
 @login_required
 def circle_detail_view(request, circle_id):
@@ -181,7 +202,7 @@ def circle_detail_view(request, circle_id):
 
     best_slot = None
     best_score = None
-    if total_members > 1:
+    if total_members > 1:   
         for row in grid:
             penalty = SLEEP_PENALTY if row['hour'] in SLEEP_HOURS else 0
             for cell in row['cells']:
@@ -190,15 +211,24 @@ def circle_detail_view(request, circle_id):
                     best_score = score
                     best_slot = cell
 
+    proposals = Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at')
+    user_votes = {
+        v.event_id: v.choice
+        for v in ProposalVote.objects.filter(user=request.user, event__circle=circle)
+    }
+
     return render(request, 'circles_app/circle_detail.html', {
-        'circle':circle, 
-        'memberships':memberships,
-        'days':days,
-        'grid':grid,
+        'circle': circle,
+        'memberships': memberships,
+        'days': days,
+        'grid': grid,
         'prev_week': monday - timedelta(days=7),
         'next_week': monday + timedelta(days=7),
-        'proposals': proposals, 'user_votes': user_votes
-        })
+        'proposals': proposals,
+        'user_votes': user_votes,
+        'best_slot': best_slot,
+    })
+
 
 @login_required
 def join_circle_view(request, code):
@@ -241,13 +271,7 @@ def home_view(request):
     join_form = JoinCircleForm()
     return render(request, 'circles_app/home.html',
                   {'memberships': user_memberships, 'join_form': join_form})
- 
- 
-class ProtectedView(LoginRequiredMixin, View):
-    login_url = '/login/'
- 
-    def get(self, request):
-        return render(request, 'registration/protected.html')
+
 
 @login_required
 def propose_event_view(request, circle_id):
@@ -409,9 +433,93 @@ def import_calendar_view(request):
         form = ICSUploadForm()
     return render(request, 'circles_app/import_calendar.html', {'form': form})
 
+@login_required
+def export_calendar_view(request):
+    cal = ICalCalendar()
+    cal.add('prodid', '-//Circles App//mxm.dk//')
+    cal.add('version', '2.0')
+
+    for e in Event.objects.filter(user=request.user):
+        ical_event = ICalEvent()
+        ical_event.add('summary', e.event_name)
+        ical_event.add('dtstart', e.start_time)
+        ical_event.add('dtend', e.end_time)
+        ical_event.add('description', e.event_description)
+        cal.add_component(ical_event)
+
+    response = HttpResponse(cal.to_ical(), content_type='text/calendar')
+    response['Content-Disposition'] = 'attachment; filename="my_calendar.ics"'
+    return response
 
 def _ics_value_to_aware(value, end_of_day):
     if isinstance(value, datetime):
         return value if timezone.is_aware(value) else timezone.make_aware(value)
     clock = time.max if end_of_day else time.min
     return timezone.make_aware(datetime.combine(value, clock))
+
+# CRUD FUNCTIONS FOR EVENTS, CIRCLES
+
+@login_required
+def edit_event_view(request, event_id):
+    event = get_object_or_404(Event, id=event_id, user=request.user)
+    if request.method == "POST":
+        form = EventForm(request.POST, instance=event)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Event updated.")
+            return redirect('calendar')
+    else:
+        form = EventForm(instance=event)
+    return render(request, 'circles_app/edit_event.html', {'form': form, 'event': event})
+
+
+@login_required
+def delete_event_view(request, event_id):
+    event = get_object_or_404(Event, id=event_id, user=request.user)
+    if request.method == "POST":
+        event.delete()
+        messages.success(request, "Event deleted.")
+        return redirect('calendar')
+    return render(request, 'circles_app/delete_event_confirm.html', {'event': event})
+
+@login_required
+def edit_circle_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    is_owner = Membership.objects.filter(user=request.user, circle=circle, role='owner').exists()
+    if not is_owner:
+        raise Http404
+    if request.method == "POST":
+        form = CircleForm(request.POST, instance=circle)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Circle updated.")
+            return redirect('circle_detail', circle_id=circle.id)
+    else:
+        form = CircleForm(instance=circle)
+    return render(request, 'circles_app/edit_circle.html', {'form': form, 'circle': circle})
+
+
+@login_required
+def delete_circle_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    is_owner = Membership.objects.filter(user=request.user, circle=circle, role='owner').exists()
+    if not is_owner:
+        raise Http404
+    if request.method == "POST":
+        circle.delete()
+        messages.success(request, "Circle deleted.")
+        return redirect('home')
+    return render(request, 'circles_app/delete_circle_confirm.html', {'circle': circle})
+
+@login_required
+def leave_circle_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    membership = get_object_or_404(Membership, user=request.user, circle=circle)
+    if membership.role == 'owner':
+        messages.error(request, "Owners can't leave their own circle. Delete it instead, or transfer ownership first.")
+        return redirect('circle_detail', circle_id=circle.id)
+    if request.method == "POST":
+        membership.delete()
+        messages.success(request, f"You left {circle.circle_name}.")
+        return redirect('home')
+    return render(request, 'circles_app/leave_circle_confirm.html', {'circle': circle})

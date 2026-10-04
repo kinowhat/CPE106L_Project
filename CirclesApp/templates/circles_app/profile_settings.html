@@ -1,13 +1,10 @@
-{% load static %}
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Timezone Settings</title>
-<link rel="stylesheet" href="{% static 'styles/styles.css' %}"></head>
-<body>
+{% extends 'base.html' %}
+{% block title %}Timezone Settings{% endblock %}
+{% block content %}
     <h2>Your Timezone</h2>
     <form method="POST">
         {% csrf_token %}
         {{ form.as_p }}
         <button type="submit">Save</button>
     </form>
-    <a href="{% url 'home' %}">Back</a>
-</body></html>
+{% endblock %}

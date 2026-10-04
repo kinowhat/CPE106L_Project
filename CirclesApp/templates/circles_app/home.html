@@ -1,69 +1,27 @@
-{% load static %}
+{% extends 'base.html' %}
+{% block title %}Home{% endblock %}
+{% block content %}
+    <h2>Home</h2>
+    <p>Welcome, {{ request.user.username }}!</p>
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'styles/styles.css' %}">
-
-</head>
-<body>
-    <div class="container">
-        <h2>Home</h2>
-        <p>Welcome, {{request.user.username}}!</p>
-        <a href="{% url 'protected' %}">Go to your protected page!</a>
-        <form method="POST" action="{% url 'logout' %}">
-            {% csrf_token %}
-            <button type="submit">Logout</button>
-        </form>
-        <a href="{% url 'profile_settings' %}">Change Timezone</a>
-    </div>
-    {# CIRCLES LIST  #}
-    <div>
-        <p>Check on your circles!</p>
-
-        {% if memberships %} 
-            
-            {% for i in memberships %}
-
-                <p><a href="{% url 'circle_detail' i.circle.id %}">{{i.circle.circle_name}}</a></p>
-
-            {% endfor %}
-        {% else %}
+    <p>Check on your circles!</p>
+    {% if memberships %}
+        {% for i in memberships %}
+            <p><a href="{% url 'circle_detail' i.circle.id %}">{{ i.circle.circle_name }}</a></p>
+        {% endfor %}
+    {% else %}
         <p>No Circles yet! Join a Circle!</p>
-        {% endif %}
-    </div>
+    {% endif %}
 
-    <div>
-        <form method = "POST" action="{% url 'create_circle' %}">
-            {% csrf_token %}
-            <button type = "submit">Create Circle</button>
-        </form>
+    <form method="POST" action="{% url 'create_circle' %}">
+        {% csrf_token %}
+        <button type="submit">Create Circle</button>
+    </form>
 
-    </div>
-    <div>
-        <form method = "POST" action="{% url 'calendar' %}">
-            {% csrf_token %}
-            <button type = "submit">Manage your Calendar</button>
-        </form>
-
-    </div>
-    <div>
-        {% if messages %}
-            {% for message in messages %}
-                <p style="color: red;">{{ message }}</p>
-            {% endfor %}
-        {% endif %}
-
-        <h3>Join a Circle</h3>
-        <form method="POST" action="{% url 'find_circle' %}">
-            {% csrf_token %}
-            {{ join_form.as_p }}
-            <button type="submit">Join Circle</button>
-        </form>
-    </div>
-    
-</body>
-</html>
+    <h3>Join a Circle</h3>
+    <form method="POST" action="{% url 'find_circle' %}">
+        {% csrf_token %}
+        {{ join_form.as_p }}
+        <button type="submit">Join Circle</button>
+    </form>
+{% endblock %}

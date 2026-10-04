@@ -1,0 +1,12 @@
+{% load static %}
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Leave Circle</title>
+<link rel="stylesheet" href="{% static 'styles/styles.css' %}"></head>
+<body>
+    <h2>Leave "{{ circle.circle_name }}"?</h2>
+    <form method="POST">
+        {% csrf_token %}
+        <button type="submit">Yes, leave</button>
+    </form>
+    <a href="{% url 'circle_detail' circle.id %}">Cancel</a>
+</body></html>
