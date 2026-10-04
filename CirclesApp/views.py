@@ -269,8 +269,13 @@ def find_circle_view(request):
 def home_view(request):
     user_memberships = Membership.objects.filter(user=request.user)
     join_form = JoinCircleForm()
-    return render(request, 'circles_app/home.html',
-                  {'memberships': user_memberships, 'join_form': join_form})
+    upcoming_events = Event.objects.filter(
+        user=request.user, start_time__gte=timezone.now(),
+    ).order_by('start_time')[:5]
+    return render(request, 'circles_app/home.html', {
+        'memberships': user_memberships, 'join_form': join_form,
+        'upcoming_events': upcoming_events,
+    })
 
 
 @login_required
@@ -325,9 +330,11 @@ def vote_proposal_view(request, proposal_id):
             proposal.user = proposal.proposed_by
             proposal.save()
 
-            members = Membership.objects.filter(circle=proposal.circle).exclude(
-                user=proposal.proposed_by
-            ).select_related('user')
+            yes_voter_ids = ProposalVote.objects.filter(event=proposal, choice='yes').values_list('user_id', flat=True)
+            members = Membership.objects.filter(
+                circle=proposal.circle, user_id__in=yes_voter_ids
+            ).exclude(user=proposal.proposed_by).select_related('user')
+
             for member in members:
                 Event.objects.get_or_create(
                     user=member.user,
@@ -341,11 +348,11 @@ def vote_proposal_view(request, proposal_id):
                         'proposed_by': proposal.proposed_by,
                     },
                 )
-            messages.success(request, f"'{proposal.event_name}' passed and was added to everyone's calendar!")
+            messages.success(request, f"'{proposal.event_name}' passed! Added to the calendars of everyone who voted yes.")
             notify_circle_members(
                 proposal.circle,
                 f"Event approved in {proposal.circle.circle_name}",
-                f"'{proposal.event_name}' passed and was added to everyone's calendar!",
+                f"'{proposal.event_name}' passed. It was added to the calendars of members who voted yes.",
             )
         else:
             messages.success(request, "Vote recorded.")
@@ -523,3 +530,64 @@ def leave_circle_view(request, circle_id):
         messages.success(request, f"You left {circle.circle_name}.")
         return redirect('home')
     return render(request, 'circles_app/leave_circle_confirm.html', {'circle': circle})
+
+@login_required
+def quick_approve_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    is_owner = Membership.objects.filter(user=request.user, circle=circle, role='owner').exists()
+    if not is_owner:
+        raise Http404
+
+    if request.method == "POST":
+        form = EventProposalForm(request.POST)
+        if form.is_valid():
+            event = form.save(commit=False)
+            event.circle = circle
+            event.proposed_by = request.user
+            event.user = request.user
+            event.status = 'approved'
+            event.save()
+
+            members = Membership.objects.filter(circle=circle).exclude(user=request.user).select_related('user')
+            for member in members:
+                Event.objects.get_or_create(
+                    user=member.user, circle=circle,
+                    start_time=event.start_time, end_time=event.end_time, event_name=event.event_name,
+                    defaults={'event_description': event.event_description, 'status': 'approved', 'proposed_by': request.user},
+                )
+            messages.success(request, f"'{event.event_name}' added to everyone's calendar.")
+            notify_circle_members(
+                circle, f"New event in {circle.circle_name}",
+                f"{request.user.username} added '{event.event_name}' directly to everyone's calendar!",
+                exclude_user=request.user,
+            )
+            return redirect('circle_detail', circle_id=circle.id)
+    else:
+        form = EventProposalForm()
+    return render(request, 'circles_app/quick_approve.html', {'form': form, 'circle': circle})
+
+@login_required
+def export_circle_calendar_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
+    if not is_member:
+        raise Http404
+
+    cal = ICalCalendar()
+    cal.add('prodid', '-//Circles App//mxm.dk//')
+    cal.add('version', '2.0')
+
+    shared = Event.objects.filter(circle=circle, status='approved').values(
+        'event_name', 'start_time', 'end_time', 'event_description'
+    ).distinct()
+    for e in shared:
+        ical_event = ICalEvent()
+        ical_event.add('summary', e['event_name'])
+        ical_event.add('dtstart', e['start_time'])
+        ical_event.add('dtend', e['end_time'])
+        ical_event.add('description', e['event_description'])
+        cal.add_component(ical_event)
+
+    response = HttpResponse(cal.to_ical(), content_type='text/calendar')
+    response['Content-Disposition'] = f'attachment; filename="{circle.circle_name}.ics"'
+    return response

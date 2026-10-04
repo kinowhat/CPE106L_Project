@@ -22,4 +22,6 @@ urlpatterns = [
     path('circles/<int:circle_id>/delete/', views.delete_circle_view, name='delete_circle'),
     path('circles/<int:circle_id>/leave/', views.leave_circle_view, name='leave_circle'),
     path('calendar/export/', views.export_calendar_view, name='export_calendar'),
+    path('circles/<int:circle_id>/quick_approve/', views.quick_approve_view, name='quick_approve'),
+    path('circles/<int:circle_id>/export/', views.export_circle_calendar_view, name='export_circle_calendar'),
 ]

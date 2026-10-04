@@ -8,6 +8,7 @@
     <h1 class="text-4xl font-light flex-1">{{ circle.circle_name }}</h1>
     {% for i in memberships %}
         {% if i.user == request.user and i.role == 'owner' %}
+            <a href="{% url 'quick_approve' circle.id %}">Quick Add Event</a>
             <a href="{% url 'edit_circle' circle.id %}" class="btn btn-sm">Edit Circle</a>
             <a href="{% url 'delete_circle' circle.id %}" class="btn btn-sm btn-error">Delete Circle</a>
         {% elif i.user == request.user %}
@@ -17,17 +18,12 @@
 </div>
 
 <!-- Invite -->
-<div class="card bg-base-100 mb-6">
-    <div class="card-body gap-1 py-4">
-        <p class="text-sm">
-            Invite code:
-            <span class="badge badge-primary font-medium">{{ circle.invite_code }}</span>
-        </p>
-        <p class="text-sm">
-            Invite link:
-            <a href="{% url 'join_circle' circle.invite_code %}" class="link">{% url 'join_circle' circle.invite_code %}</a>
-        </p>
-    </div>
+<div class="flex items-center gap-2">
+    <code id="invite-link" class="text-sm">{{ request.scheme }}://{{ request.get_host }}{% url 'join_circle' circle.invite_code %}</code>
+    <button type="button" class="btn btn-xs"
+        onclick="navigator.clipboard.writeText(document.getElementById('invite-link').textContent); this.textContent='Copied!'">
+        Copy
+    </button>
 </div>
 
 <!-- Members -->
@@ -60,6 +56,8 @@
     <p class="text-sm">{{ best_slot.free }} of {{ best_slot.total }} members free</p>
 </div>
 {% endif %}
+
+<a href="{% url 'export_circle_calendar' circle.id %}" class="btn btn-sm">Export Circle Calendar (.ics)</a>
 
 <div class="overflow-x-auto">
   <div class="min-w-[56rem] rounded-3xl bg-base-100 p-3">
