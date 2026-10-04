@@ -13,8 +13,8 @@
 <div class="flex gap-4 min-h-[calc(100vh-2rem)]">
 
     {% if request.user.is_authenticated %}
-    <!-- Sidebar (logged in, desktop) -->
-    <aside class="hidden md:flex flex-col w-56 shrink-0 rounded-3xl bg-neutral text-neutral-content p-4">
+    <!-- Sidebar (logged in, desktop): stays in view while the page scrolls -->
+    <aside class="hidden md:flex flex-col w-56 shrink-0 rounded-3xl bg-neutral text-neutral-content p-4 sticky top-4 self-start h-[calc(100vh-2rem)]">
         <a href="{% url 'home' %}" class="text-2xl font-semibold mb-6 px-2">circles</a>
 
         <ul class="menu w-full p-0 gap-1">
@@ -40,7 +40,10 @@
 
         <form method="POST" action="{% url 'logout' %}" class="mt-auto">
             {% csrf_token %}
-            <button type="submit" class="btn btn-ghost w-full justify-start rounded-full">Logout</button>
+            <button type="submit"
+                    class="btn w-full justify-start rounded-full border-0 bg-transparent text-neutral-content shadow-none hover:bg-primary hover:text-primary-content">
+                Logout
+            </button>
         </form>
     </aside>
     {% endif %}
@@ -52,18 +55,18 @@
         <!-- Top bar (logged in, mobile only) -->
         <div class="md:hidden navbar bg-neutral text-neutral-content rounded-full mb-4 px-4">
             <a href="{% url 'home' %}" class="font-semibold text-xl flex-1">circles</a>
-            <a href="{% url 'calendar' %}" class="btn btn-ghost btn-sm rounded-full">Calendar</a>
-            <a href="{% url 'profile_settings' %}" class="btn btn-ghost btn-sm rounded-full">Timezone</a>
+            <a href="{% url 'calendar' %}" class="btn btn-sm rounded-full border-0 bg-transparent text-neutral-content shadow-none hover:bg-primary hover:text-primary-content">Calendar</a>
+            <a href="{% url 'profile_settings' %}" class="btn btn-sm rounded-full border-0 bg-transparent text-neutral-content shadow-none hover:bg-primary hover:text-primary-content">Timezone</a>
             <form method="POST" action="{% url 'logout' %}">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-ghost btn-sm rounded-full">Logout</button>
+                <button type="submit" class="btn btn-sm rounded-full border-0 bg-transparent text-neutral-content shadow-none hover:bg-primary hover:text-primary-content">Logout</button>
             </form>
         </div>
         {% else %}
         <!-- Top bar (logged out) -->
         <div class="navbar bg-neutral text-neutral-content rounded-full px-6 mb-6">
             <a href="{% url 'home' %}" class="font-semibold text-xl flex-1">circles</a>
-            <a href="{% url 'login' %}" class="btn btn-ghost btn-sm rounded-full">Login</a>
+            <a href="{% url 'login' %}" class="btn btn-sm rounded-full border-0 bg-transparent text-neutral-content shadow-none hover:bg-primary hover:text-primary-content">Login</a>
             <a href="{% url 'register' %}" class="btn btn-primary btn-sm rounded-full">Register</a>
         </div>
         {% endif %}
