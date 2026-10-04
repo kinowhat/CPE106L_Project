@@ -1,0 +1,14 @@
+{% load static %}
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Import Calendar</title>
+<link rel="stylesheet" href="{% static 'styles/styles.css' %}"></head>
+<body>
+    <h2>Import from Google Calendar</h2>
+    <p>In Google Calendar: Settings → (pick a calendar on the left) → Export. Unzip the download and upload the resulting .ics file here.</p>
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Import</button>
+    </form>
+    <a href="{% url 'calendar' %}">Back</a>
+</body></html>

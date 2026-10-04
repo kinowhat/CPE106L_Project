@@ -28,6 +28,13 @@
             <a href="?week={{ prev_week|date:'Y-m-d' }}">← Previous week</a> |
             <a href="?week={{ next_week|date:'Y-m-d' }}">Next week →</a>
         </p>
+        {% if best_slot and best_slot.free > 0 %}
+        <div style="border:1px solid green; padding:8px; margin-bottom:10px;">
+            <strong>Best time to meet this week:</strong>
+            {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
+            — {{ best_slot.free }} of {{ best_slot.total }} members free
+        </div>
+        {% endif %}
         <table border="1" cellpadding="4">
             <tr>
                 <th>Hour</th>

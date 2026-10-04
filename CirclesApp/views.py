@@ -12,8 +12,16 @@ from django.contrib import messages
 from datetime import timedelta, datetime, time
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.core.mail import send_mail
+from icalendar import Calendar as ICalCalendar
 
 HOURS = range(0,24)
+
+def notify_circle_members(circle, subject, message, exclude_user=None):
+    recipients = Membership.objects.filter(circle=circle).exclude(user=exclude_user).select_related('user')
+    emails = [m.user.email for m in recipients if m.user.email]
+    if emails:
+        send_mail(subject, message, None, emails, fail_silently=True)
 
 def get_week_monday(request):
 
@@ -41,7 +49,11 @@ def register_view(request):
         if form.is_valid():
             username = form.cleaned_data.get("username")
             password = form.cleaned_data.get("password")
-            user = User.objects.create_user(username = username, password = password)
+            user = User.objects.create_user(
+                username = username, 
+                password = password,
+                email=form.cleaned_data.get('email', '')
+                )
             UserProfile.objects.create(user=user)
             login(request, user)
             return redirect('home')
@@ -164,6 +176,13 @@ def circle_detail_view(request, circle_id):
             })
         grid.append({'hour': hour, 'cells': cells})
 
+    best_slot = None
+    if total_members > 1:
+        for row in grid:
+            for cell in row['cells']:
+                if best_slot is None or cell['free'] > best_slot['free']:
+                    best_slot = cell
+
     proposals = Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at')
     user_votes = {
         v.event_id: v.choice
@@ -187,6 +206,16 @@ def join_circle_view(request, code):
     if request.method == "POST":
         Membership.objects.get_or_create(user=request.user,circle=circle,defaults={'role': 'member'},)
         return redirect('circle_detail', circle_id=circle.id)
+    if created:
+        owners = Membership.objects.filter(circle=circle, role='owner').select_related('user')
+        owner_emails = [m.user.email for m in owners if m.user.email]
+        if owner_emails:
+            send_mail(
+                f"New member joined {circle.circle_name}",
+                f"{request.user.username} joined your circle!",
+                None, owner_emails, fail_silently=True,
+            )        
+            
     return render(request, 'circles_app/join_preview.html', {'circle':circle, 'already_member':already_member})
 
 @login_required
@@ -235,6 +264,12 @@ def propose_event_view(request, circle_id):
             proposal.user = None
             proposal.save()
             messages.success(request, "Event proposed! Circle members can now vote.")
+            notify_circle_members(
+                circle,
+                f"New event proposed in {circle.circle_name}",
+                f"{request.user.username} proposed '{proposal.event_name}'. Log in to vote!",
+                exclude_user=request.user,
+            )
             return redirect('circle_detail', circle_id=circle.id)
     else:
         form = EventProposalForm()
@@ -281,6 +316,11 @@ def vote_proposal_view(request, proposal_id):
                     },
                 )
             messages.success(request, f"'{proposal.event_name}' passed and was added to everyone's calendar!")
+            notify_circle_members(
+                proposal.circle,
+                f"Event approved in {proposal.circle.circle_name}",
+                f"'{proposal.event_name}' passed and was added to everyone's calendar!",
+            )
         else:
             messages.success(request, "Vote recorded.")
 
@@ -329,3 +369,47 @@ def time_block_detail_view(request, circle_id):
     return render(request, 'circles_app/time_block_detail.html', {
         'circle': circle, 'cell_start': cell_start, 'cell_end': cell_end, 'entries': entries,
     })
+
+@login_required
+def import_calendar_view(request):
+    if request.method == "POST":
+        form = ICSUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            uploaded_file = form.cleaned_data['ics_file']
+            try:
+                cal = ICalCalendar.from_ical(uploaded_file.read())
+            except ValueError:
+                messages.error(request, "That doesn't look like a valid .ics file.")
+                return redirect('import_calendar')
+
+            created = 0
+            for component in cal.walk('VEVENT'):
+                raw_start = component.get('dtstart')
+                raw_end = component.get('dtend')
+                if raw_start is None or raw_end is None:
+                    continue
+
+                start_dt = _ics_value_to_aware(raw_start.dt, end_of_day=False)
+                end_dt = _ics_value_to_aware(raw_end.dt, end_of_day=True)
+
+                Event.objects.create(
+                    user=request.user,
+                    start_time=start_dt,
+                    end_time=end_dt,
+                    event_name=str(component.get('summary', 'Imported Event'))[:32],
+                    event_description=str(component.get('description', '')),
+                )
+                created += 1
+
+            messages.success(request, f"Imported {created} events.")
+            return redirect('calendar')
+    else:
+        form = ICSUploadForm()
+    return render(request, 'circles_app/import_calendar.html', {'form': form})
+
+
+def _ics_value_to_aware(value, end_of_day):
+    if isinstance(value, datetime):
+        return value if timezone.is_aware(value) else timezone.make_aware(value)
+    clock = time.max if end_of_day else time.min
+    return timezone.make_aware(datetime.combine(value, clock))

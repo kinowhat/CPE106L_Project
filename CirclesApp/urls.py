@@ -16,4 +16,5 @@ urlpatterns = [
     path('proposals/<int:proposal_id>/vote/', views.vote_proposal_view, name='vote_proposal'),
     path('settings/timezone/', views.profile_settings_view, name='profile_settings'),
     path('circles/<int:circle_id>/timeblock/', views.time_block_detail_view, name='time_block_detail'),
+    path('calendar/import/', views.import_calendar_view, name='import_calendar'),
 ]

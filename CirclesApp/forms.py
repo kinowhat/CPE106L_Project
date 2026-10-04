@@ -9,7 +9,7 @@ class RegisterForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'password_confirm']
+        fields = ['username', 'email', 'password', 'password_confirm']
 
     def clean(self):
         cleaned_data = super().clean()
@@ -83,3 +83,6 @@ class EventProposalForm(forms.ModelForm):
         if start_time and end_time and start_time >= end_time:
             raise forms.ValidationError("Start and End times are in the wrong order!")
         return cleaned_data
+
+class ICSUploadForm(forms.Form):
+    ics_file = forms.FileField(label="Select a .ics file")
