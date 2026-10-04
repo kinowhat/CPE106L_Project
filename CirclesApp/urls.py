@@ -15,4 +15,6 @@ urlpatterns = [
     path('calendar/repeat/', views.add_repeating_event_view, name='add_repeating_event'),
     path('circles/<int:circle_id>/propose/', views.propose_event_view, name='propose_event'),
     path('proposals/<int:proposal_id>/vote/', views.vote_proposal_view, name='vote_proposal'),
+    path('settings/timezone/', views.profile_settings_view, name='profile_settings'),
+    path('circles/<int:circle_id>/timeblock/', views.time_block_detail_view, name='time_block_detail'),
 ]

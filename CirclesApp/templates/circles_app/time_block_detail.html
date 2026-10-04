@@ -1,0 +1,13 @@
+{% load static %}
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Time Block</title>
+<link rel="stylesheet" href="{% static 'styles/styles.css' %}"></head>
+<body>
+    <h2>{{ circle.circle_name }} — {{ cell_start|date:"D M d, H:i" }} to {{ cell_end|date:"H:i" }}</h2>
+    <ul>
+        {% for e in entries %}
+            <li>{{ e.user }}: {% if e.masked %}Busy{% else %}<strong>{{ e.name }}</strong> — {{ e.description }}{% endif %}</li>
+        {% endfor %}
+    </ul>
+    <a href="{% url 'circle_detail' circle.id %}">Back</a>
+</body></html>

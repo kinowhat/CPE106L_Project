@@ -1,15 +1,15 @@
 from django import forms
 from django.contrib.auth.models import User
-from . models import Circle, User, Event
+from . models import Circle, User, Event, UserProfile, TIMEZONE_CHOICES
 
 class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     password_confirm = forms.CharField(widget=forms.PasswordInput, label="Confirm Password")
-    timezone = forms.ChoiceField(choices=TIMEZONE_CHOICES, initial='Asia/Manila')
+  
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'password_confirm', 'timezone']
+        fields = ['username', 'password', 'password_confirm']
 
     def clean(self):
         cleaned_data = super().clean()
@@ -20,38 +20,26 @@ class RegisterForm(forms.ModelForm):
             raise forms.ValidationError("Passwords do not match!")
         return cleaned_data
 
+# For changing user timezones
+class ProfileForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = ['timezone']
+
 class CircleForm(forms.ModelForm):
     class Meta:
         model = Circle
         fields = ['circle_name', 'circle_tag']
 
 class CalendarForm(forms.ModelForm):
-    start_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
-    end_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
-
-    class Meta:
-        model = Event
-        fields = ['start_time', 'end_time', 'event_name', 'event_description']
-
-    def clean(self):
-        cleaned_data = super().clean()
-        start_time = cleaned_data.get('start_time')
-        end_time = cleaned_data.get('end_time')
-
-        if start_time and end_time and start_time >= end_time: 
-            raise forms.ValidationError("Start and End times are in the wrong order!")
-        return cleaned_data
-
-
+    WEEKDAY_CHOICES = [
+        (0, 'Mon'), (1, 'Tue'), (2, 'Wed'), (3, 'Thu'),
+        (4, 'Fri'), (5, 'Sat'), (6, 'Sun'),
+    ]
 
     start_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
     end_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
-    weekdays = forms.MultipleChoiceField(
-        choices=WEEKDAY_CHOICES,
-        widget=forms.CheckboxSelectMultiple,
-        required=False,
-        label="Repeat on",
-        )
+    weekdays = forms.MultipleChoiceField(choices=WEEKDAY_CHOICES, widget=forms.CheckboxSelectMultiple, required=False, label="Repeat on")
     num_weeks = forms.IntegerField(required=False, min_value=1, max_value=52, label="For how many weeks")
 
     class Meta:
@@ -64,7 +52,6 @@ class CalendarForm(forms.ModelForm):
         end_time = cleaned_data.get('end_time')
         weekdays = cleaned_data.get('weekdays')
         num_weeks = cleaned_data.get('num_weeks')
-
         if start_time and end_time and start_time >= end_time:
             raise forms.ValidationError("Start and End times are in the wrong order!")
         if weekdays and not num_weeks:

@@ -40,7 +40,10 @@
                 <td>{{ row.hour }}:00</td>
                 {% for cell in row.cells %}
                     <td style="background: rgba(40,167,69,{{ cell.ratio|floatformat:2 }});">
-                        {{ cell.free }}/{{ cell.total }}
+                        <a href="{% url 'time_block_detail' circle.id %}?start={{ cell.start|date:'Y-m-d\TH:i' }}&end={{ cell.end|date:'Y-m-d\TH:i' }}">
+                            {{ cell.free }}/{{ cell.total }}
+                            {% for l in cell.labels %}<br><strong>{{ l }}</strong>{% endfor %}
+                        </a>
                     </td>
                 {% endfor %}
             </tr>

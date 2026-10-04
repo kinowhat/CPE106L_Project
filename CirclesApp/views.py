@@ -4,8 +4,8 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views import View
 from django.contrib.auth.models import User
-from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm
-from . models import Circle, Membership, Event, ProposalVote
+from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm, ProfileForm
+from . models import Circle, Membership, Event, ProposalVote, UserProfile
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.contrib import messages
@@ -42,33 +42,12 @@ def register_view(request):
             username = form.cleaned_data.get("username")
             password = form.cleaned_data.get("password")
             user = User.objects.create_user(username = username, password = password)
-            UserProfile.objects.create(user=user, timezone=form.cleaned_data['timezone'])
+            UserProfile.objects.create(user=user)
             login(request, user)
             return redirect('home')
     else: 
         form = RegisterForm()
     return render(request, 'accounts/register.html', {'form':form})
-
-def login_view(request):
-
-    error_message = None
- 
-    if request.method == "POST":
-        username = request.POST.get("username")
-        password = request.POST.get("password")
-        user = authenticate(request, username=username, password=password)
-        if user is not None:
-            login(request, user)
-            next_url = request.POST.get('next') or request.GET.get('next')
-            # Only follow redirects that stay on this site (prevents open redirects)
-            if not next_url or not url_has_allowed_host_and_scheme(
-                next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
-            ):
-                next_url = 'home'
-            return redirect(next_url)
-        else:
-            error_message = "Invalid Credentials"
-    return render(request, 'accounts/login.html', {'error': error_message})
 
 
 def login_view(request):
@@ -168,13 +147,22 @@ def circle_detail_view(request, circle_id):
     for hour in HOURS:
         cells = []
         for day in days:
-            cell_start = timezone.make_aware(datetime.combine(day,time(hour=hour)))
+            cell_start = timezone.make_aware(datetime.combine(day, time(hour=hour)))
             cell_end = cell_start + timedelta(hours=1)
-            busy_users = {e.user_id for e in events if e.start_time < cell_end and cell_start < e.end_time}
+            busy_users = set()
+            labels = set()
+            for e in events:
+                if e.start_time < cell_end and cell_start < e.end_time:
+                    busy_users.add(e.user_id)
+                    if e.status == 'approved' and e.circle_id == circle.id:
+                        labels.add(e.event_name)
             free = total_members - len(busy_users)
             ratio = free / total_members if total_members else 0
-            cells.append({'free':free, 'total': total_members, 'ratio':ratio})
-        grid.append({'hour':hour, 'cells':cells})
+            cells.append({
+                'free': free, 'total': total_members, 'ratio': ratio,
+                'labels': labels, 'start': cell_start, 'end': cell_end,
+            })
+        grid.append({'hour': hour, 'cells': cells})
 
     proposals = Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at')
     user_votes = {
@@ -215,37 +203,6 @@ def find_circle_view(request):
             messages.error(request, "Please enter an invite code.")
     return redirect('home')
     
-@login_required
-def add_repeating_event_view(request):
-    if request.method == "POST":
-        form = RepeatingEventForm(request.POST)
-        if form.is_valid():
-            data = form.cleaned_data
-            selected_weekdays = {int(d) for d in data['weekdays']}
-            first_date = data['start_date']
-            num_days = data['num_weeks'] * 7
-
-            created_count = 0
-            for offset in range(num_days):
-                day = first_date + timedelta(days=offset)
-                if day.weekday() in selected_weekdays:
-                    start_dt = timezone.make_aware(datetime.combine(day, data['start_time']))
-                    end_dt = timezone.make_aware(datetime.combine(day, data['end_time']))
-                    Event.objects.create(
-                        user=request.user,
-                        start_time=start_dt,
-                        end_time=end_dt,
-                        event_name=data['event_name'],
-                        event_description=data['event_description'],
-                    )
-                    created_count += 1
-
-            messages.success(request, f"Created {created_count} events.")
-            return redirect('calendar')
-    else:
-        form = RepeatingEventForm()
-
-    return render(request, 'circles_app/add_repeating_event.html', {'form': form})
 
 @login_required
 def home_view(request):
@@ -329,8 +286,46 @@ def vote_proposal_view(request, proposal_id):
 
     return redirect('circle_detail', circle_id=proposal.circle.id)
 
-#Home View
-# Using the decorator
+@login_required
+def profile_settings_view(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Timezone updated.")
+            return redirect('home')
+    else:
+        form = ProfileForm(instance=profile)
+    return render(request, 'circles_app/profile_settings.html', {'form': form})
 
+@login_required
+def time_block_detail_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
+    if not is_member:
+        raise Http404
 
-# Create your views here.
+    try:
+        cell_start = timezone.make_aware(datetime.strptime(request.GET.get('start', ''), '%Y-%m-%dT%H:%M'))
+        cell_end = timezone.make_aware(datetime.strptime(request.GET.get('end', ''), '%Y-%m-%dT%H:%M'))
+    except ValueError:
+        raise Http404
+
+    member_ids = Membership.objects.filter(circle=circle).values_list('user_id', flat=True)
+    overlapping = Event.objects.filter(
+        user_id__in=member_ids, start_time__lt=cell_end, end_time__gt=cell_start,
+    ).select_related('user')
+
+    entries = []
+    for e in overlapping:
+        shared = (e.status == 'approved' and e.circle_id == circle.id)
+        mine = (e.user_id == request.user.id)
+        if shared or mine:
+            entries.append({'user': e.user.username, 'name': e.event_name, 'description': e.event_description, 'masked': False})
+        else:
+            entries.append({'user': e.user.username, 'name': 'Busy', 'description': '', 'masked': True})
+
+    return render(request, 'circles_app/time_block_detail.html', {
+        'circle': circle, 'cell_start': cell_start, 'cell_end': cell_end, 'entries': entries,
+    })
