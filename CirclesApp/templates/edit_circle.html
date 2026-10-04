@@ -1,8 +1,6 @@
-{% load static %}
-<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Edit Circle</title>
-<link rel="stylesheet" href="{% static 'styles/styles.css' %}"></head>
-<body>
+{% extends 'base.html' %}
+{% block title %}Edit Circle{% endblock %}
+{% block content %}
     <h2>Edit {{ circle.circle_name }}</h2>
     <form method="POST">
         {% csrf_token %}
@@ -10,4 +8,4 @@
         <button type="submit">Save Changes</button>
     </form>
     <a href="{% url 'circle_detail' circle.id %}">Back</a>
-</body></html>
+{% endblock %}

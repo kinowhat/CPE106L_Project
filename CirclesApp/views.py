@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm, ProfileForm
+from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm, ProfileForm, EventForm, ICSUploadForm
 from . models import Circle, Membership, Event, ProposalVote, UserProfile
 from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse
@@ -123,34 +123,34 @@ def calendar_view(request):
                 event.user = request.user
                 event.save()
             return redirect('calendar')
-        else:
-                form = CalendarForm()
+    else:
+        form = CalendarForm()
 
-        monday = get_week_monday(request)
-        days = [monday + timedelta(days=i) for i in range(7)]
-        week_start = timezone.make_aware(datetime.combine(days[0], time.min))
-        week_end = timezone.make_aware(datetime.combine(days[-1], time.max))
+    monday = get_week_monday(request)
+    days = [monday + timedelta(days=i) for i in range(7)]
+    week_start = timezone.make_aware(datetime.combine(days[0], time.min))
+    week_end = timezone.make_aware(datetime.combine(days[-1], time.max))
 
-        week_events = list(Event.objects.filter(
-            user=request.user, start_time__lt=week_end, end_time__gt=week_start,
-        ).select_related('circle'))
+    week_events = list(Event.objects.filter(
+        user=request.user, start_time__lt=week_end, end_time__gt=week_start,
+    ).select_related('circle'))
 
-        grid = []
-        for hour in HOURS:
-            cells = []
-            for day in days:
-                cell_start = timezone.make_aware(datetime.combine(day, time(hour=hour)))
-                cell_end = cell_start + timedelta(hours=1)
-                matches = [e for e in week_events if e.start_time < cell_end and cell_start < e.end_time]
-                cells.append({'events': matches, 'start': cell_start, 'end': cell_end})
-            grid.append({'hour': hour, 'cells': cells})
+    grid = []
+    for hour in HOURS:
+        cells = []
+        for day in days:
+            cell_start = timezone.make_aware(datetime.combine(day, time(hour=hour)))
+            cell_end = cell_start + timedelta(hours=1)
+            matches = [e for e in week_events if e.start_time < cell_end and cell_start < e.end_time]
+            cells.append({'events': matches, 'start': cell_start, 'end': cell_end})
+        grid.append({'hour': hour, 'cells': cells})
 
-        user_events = Event.objects.filter(user=request.user).order_by('start_time')
-        return render(request, 'circles_app/calendar.html', {
-            'form': form, 'events': user_events,
-            'grid': grid, 'days': days,
-            'prev_week': monday - timedelta(days=7), 'next_week': monday + timedelta(days=7),
-        })
+    user_events = Event.objects.filter(user=request.user).order_by('start_time')
+    return render(request, 'circles_app/calendar.html', {
+        'form': form, 'events': user_events,
+        'grid': grid, 'days': days,
+        'prev_week': monday - timedelta(days=7), 'next_week': monday + timedelta(days=7),
+    })
 
 @login_required
 def circle_detail_view(request, circle_id):
