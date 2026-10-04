@@ -176,18 +176,19 @@ def circle_detail_view(request, circle_id):
             })
         grid.append({'hour': hour, 'cells': cells})
 
+    SLEEP_HOURS = set(range(22, 24)) | set(range(0, 6))  # 10PM–6AM
+    SLEEP_PENALTY = 2  # ranking-only: treat a sleep-hour slot as if this many fewer people were free
+
     best_slot = None
+    best_score = None
     if total_members > 1:
         for row in grid:
+            penalty = SLEEP_PENALTY if row['hour'] in SLEEP_HOURS else 0
             for cell in row['cells']:
-                if best_slot is None or cell['free'] > best_slot['free']:
+                score = cell['free'] - penalty
+                if best_score is None or score > best_score:
+                    best_score = score
                     best_slot = cell
-
-    proposals = Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at')
-    user_votes = {
-        v.event_id: v.choice
-        for v in ProposalVote.objects.filter(user=request.user, event__circle=circle)
-    }
 
     return render(request, 'circles_app/circle_detail.html', {
         'circle':circle, 
@@ -202,21 +203,22 @@ def circle_detail_view(request, circle_id):
 @login_required
 def join_circle_view(request, code):
     circle = get_object_or_404(Circle, invite_code=code)
-    already_member = Membership.objects.filter(user=request.user, circle = circle).exists()
+    already_member = Membership.objects.filter(user=request.user, circle=circle).exists()
     if request.method == "POST":
-        Membership.objects.get_or_create(user=request.user,circle=circle,defaults={'role': 'member'},)
+        membership, created = Membership.objects.get_or_create(
+            user=request.user, circle=circle, defaults={'role': 'member'},
+        )
+        if created:
+            owners = Membership.objects.filter(circle=circle, role='owner').select_related('user')
+            owner_emails = [m.user.email for m in owners if m.user.email]
+            if owner_emails:
+                send_mail(
+                    f"New member joined {circle.circle_name}",
+                    f"{request.user.username} joined your circle!",
+                    None, owner_emails, fail_silently=True,
+                )
         return redirect('circle_detail', circle_id=circle.id)
-    if created:
-        owners = Membership.objects.filter(circle=circle, role='owner').select_related('user')
-        owner_emails = [m.user.email for m in owners if m.user.email]
-        if owner_emails:
-            send_mail(
-                f"New member joined {circle.circle_name}",
-                f"{request.user.username} joined your circle!",
-                None, owner_emails, fail_silently=True,
-            )        
-            
-    return render(request, 'circles_app/join_preview.html', {'circle':circle, 'already_member':already_member})
+    return render(request, 'circles_app/join_preview.html', {'circle': circle, 'already_member': already_member})
 
 @login_required
 def find_circle_view(request):
