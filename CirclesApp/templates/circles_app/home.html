@@ -1,27 +1,56 @@
 {% extends 'base.html' %}
 {% block title %}Home{% endblock %}
 {% block content %}
-    <h2>Home</h2>
-    <p>Welcome, {{ request.user.username }}!</p>
 
-    <p>Check on your circles!</p>
-    {% if memberships %}
-        {% for i in memberships %}
-            <p><a href="{% url 'circle_detail' i.circle.id %}">{{ i.circle.circle_name }}</a></p>
-        {% endfor %}
-    {% else %}
-        <p>No Circles yet! Join a Circle!</p>
-    {% endif %}
+<h1 class="text-4xl font-light">Welcome, {{ request.user.username }}!</h1>
+<p class="opacity-70 mb-8">Check on your circles!</p>
 
-    <form method="POST" action="{% url 'create_circle' %}">
-        {% csrf_token %}
-        <button type="submit">Create Circle</button>
-    </form>
+<!-- Your circles -->
+<h2 class="text-xl font-medium mb-3">Your circles</h2>
 
-    <h3>Join a Circle</h3>
-    <form method="POST" action="{% url 'find_circle' %}">
-        {% csrf_token %}
-        {{ join_form.as_p }}
-        <button type="submit">Join Circle</button>
-    </form>
+{% if memberships %}
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-10">
+    {% for i in memberships %}
+    <a href="{% url 'circle_detail' i.circle.id %}"
+       class="card {% cycle 'bg-primary' 'bg-secondary' 'bg-accent' %} text-base-content hover:-translate-y-1 transition">
+        <div class="card-body">
+            <h3 class="card-title">{{ i.circle.circle_name }}</h3>
+            <p class="text-sm opacity-70">Open circle →</p>
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card bg-base-100 mb-10">
+    <div class="card-body items-center text-center">
+        <p class="opacity-70">No Circles yet! Create one or join with an invite code.</p>
+    </div>
+</div>
+{% endif %}
+
+<!-- Create and join -->
+<div class="grid gap-4 md:grid-cols-2">
+
+    <div class="card bg-base-100">
+        <div class="card-body">
+            <h2 class="card-title">Create a Circle</h2>
+            <p class="text-sm opacity-70">Start a new group and invite your friends.</p>
+            <div class="card-actions mt-2">
+                <a href="{% url 'create_circle' %}" class="btn btn-neutral">Create Circle</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card bg-base-100">
+        <form method="POST" action="{% url 'find_circle' %}" class="card-body styled-form">
+            {% csrf_token %}
+            <h2 class="card-title">Join a Circle</h2>
+            {{ join_form.as_p }}
+            <div class="card-actions mt-2">
+                <button type="submit" class="btn btn-primary">Join Circle</button>
+            </div>
+        </form>
+    </div>
+
+</div>
 {% endblock %}

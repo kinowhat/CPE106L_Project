@@ -1,10 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Edit Event{% endblock %}
 {% block content %}
-    <h2>Edit Event</h2>
-    <form method="POST">
+<div class="card bg-base-100 w-full max-w-lg mx-auto mt-10">
+    <form method="POST" class="card-body styled-form">
         {% csrf_token %}
+        <h1 class="text-3xl font-light mb-2">Edit Event</h1>
         {{ form.as_p }}
-        <button type="submit">Save Changes</button>
+        <div class="flex gap-2 mt-2">
+            <a href="{% url 'calendar' %}" class="btn flex-1">Back</a>
+            <button type="submit" class="btn btn-primary flex-1">Save Changes</button>
+        </div>
     </form>
+</div>
 {% endblock %}

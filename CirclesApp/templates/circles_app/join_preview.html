@@ -1,15 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}Join Circle{% endblock %}
 {% block content %}
-    <h2>{{ circle.circle_name }}</h2>
-    {% if already_member %}
-        <p>You're already a member of this circle.</p>
-        <a href="{% url 'circle_detail' circle.id %}">Go to circle</a>
-    {% else %}
-        <p>You've been invited to join <strong>{{ circle.circle_name }}</strong>.</p>
-        <form method="POST">
-            {% csrf_token %}
-            <button type="submit">Join Circle</button>
-        </form>
-    {% endif %}
+<div class="card bg-primary w-full max-w-md mx-auto mt-10 text-center">
+    <div class="card-body items-center gap-3">
+        <h1 class="text-3xl font-light">{{ circle.circle_name }}</h1>
+
+        {% if already_member %}
+            <p>You're already a member of this circle.</p>
+            <a href="{% url 'circle_detail' circle.id %}" class="btn btn-neutral">Go to circle</a>
+        {% else %}
+            <p>You've been invited to join <strong>{{ circle.circle_name }}</strong>.</p>
+            <form method="POST">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-neutral">Join Circle</button>
+            </form>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}

@@ -1,55 +1,121 @@
 {% extends 'base.html' %}
+{% load circle_extras %}
 {% block title %}Calendar{% endblock %}
 {% block content %}
-    <h2>Your Calendar</h2>
-    <form method="POST" action="{% url 'calendar' %}">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button type="submit">Update your Calendar</button>
-    </form>
-    <a href="{% url 'import_calendar' %}">Import from Google Calendar</a>
-    <a href="{% url 'export_calendar' %}">Export Calendar (.ics)</a>
-    <h3>Week View</h3>
-    <p>
-        <a href="?week={{ prev_week|date:'Y-m-d' }}">← Previous week</a> |
-        <a href="?week={{ next_week|date:'Y-m-d' }}">Next week →</a>
-    </p>
-    <table border="1" cellpadding="4">
-        <tr>
-            <th>Hour</th>
-            {% for day in days %}<th>{{ day|date:"D m/d" }}</th>{% endfor %}
-        </tr>
-        {% for row in grid %}
-        <tr>
-            <td>{{ row.hour }}:00</td>
-            {% for cell in row.cells %}
-                <td style="{% if cell.events %}background:#cde;{% endif %}">
-                    {% for e in cell.events %}
-                        <div>
-                            <strong>{{ e.event_name }}</strong>
-                            {% if e.status == 'approved' and e.circle %}
-                                <em>(via {{ e.circle.circle_name }})</em>
-                            {% endif %}
-                        </div>
-                    {% endfor %}
-                </td>
-            {% endfor %}
-        </tr>
-        {% endfor %}
-    </table>
+{% now "Y-m-d" as today %}
 
-    <h3>Your Schedule (list view)</h3>
-    {% if events %}
-        <ul>
-            {% for i in events %}
-            <li>
-                <strong>{{ i.event_name }}</strong> — {{ i.start_time|date:"M d, Y H:i" }} to {{ i.end_time|date:"M d, Y H:i" }}
-                <p>{{ i.event_description }}</p>
-                <a href="{% url 'edit_event' i.id %}">Edit</a> | <a href="{% url 'delete_event' i.id %}">Delete</a>
-            </li>
+<!-- Header -->
+<div class="flex flex-wrap items-center gap-3 mb-6">
+    <h1 class="text-4xl font-light flex-1">Your Calendar</h1>
+    <a href="{% url 'import_calendar' %}" class="btn btn-sm">Import from Google</a>
+    <a href="{% url 'export_calendar' %}" class="btn btn-sm">Export .ics</a>
+    <button type="button" class="btn btn-neutral btn-sm" onclick="event_modal.showModal()">Add event</button>
+</div>
+
+<!-- Add / update event modal -->
+<dialog id="event_modal" class="modal">
+    <div class="modal-box styled-form">
+        <form method="POST" action="{% url 'calendar' %}">
+            {% csrf_token %}
+            <h3 class="text-2xl font-light mb-2">Update your Calendar</h3>
+            {{ form.as_p }}
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="event_modal.close()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update your Calendar</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% if form.errors %}<script>event_modal.showModal();</script>{% endif %}
+
+<!-- Week navigation -->
+<div class="flex items-center gap-2 mb-4">
+    <a href="?week={{ prev_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">←</a>
+    <span class="px-4 py-1 rounded-full bg-base-100 text-sm">
+        {{ days.0|date:"M d" }} – {{ days.6|date:"M d, Y" }}
+    </span>
+    <a href="?week={{ next_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">→</a>
+</div>
+
+<!-- Week view -->
+<div class="overflow-x-auto">
+  <div class="min-w-[56rem] rounded-3xl bg-base-100 p-3">
+
+    <!-- Day headers -->
+    <div class="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] gap-2 pb-2">
+        <div></div>
+        {% for day in days %}
+        <div class="rounded-full text-center py-2 text-sm
+            {% if day|date:'Y-m-d' == today %}bg-neutral text-neutral-content{% else %}bg-base-200{% endif %}">
+            {{ day|date:"D" }} <span class="opacity-60">{{ day|date:"m/d" }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Hour rows -->
+    {% for row in grid %}
+    <div class="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] gap-2 border-t border-base-300">
+        <div class="text-xs opacity-60 pt-2">{{ row.hour }}:00</div>
+
+        {% for cell in row.cells %}
+        {% with day=days|nth:forloop.counter0 %}
+        <div class="relative h-16">
+            {% for e in cell.events %}
+            {% with seg=e|segment:day %}
+            {% if seg and seg.hour == row.hour %}
+            <div class="absolute inset-x-0 z-10 overflow-hidden px-3 py-2 text-xs
+                {% if seg.continued %}rounded-t-none{% else %}rounded-t-2xl{% endif %}
+                {% if seg.continues %}rounded-b-none{% else %}rounded-b-2xl{% endif %}
+                {% if e.status == 'approved' and e.circle %}bg-secondary{% else %}bg-primary{% endif %}"
+                 style="top: calc({{ seg.minute }} / 60 * 4rem + 2px);
+                        height: calc({{ seg.duration }} / 60 * 4rem - 4px);
+                        min-height: 1.75rem;">
+                <p class="font-medium leading-tight">{{ e.event_name }}</p>
+                <p class="opacity-70">{{ e.start_time|date:"H:i" }} – {{ e.end_time|date:"H:i" }}</p>
+                {% if e.status == 'approved' and e.circle %}
+                    <p class="opacity-70">via {{ e.circle.circle_name }}</p>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% endwith %}
             {% endfor %}
-        </ul>
-    {% else %}
-        <p>No events added yet. Update your calendar!</p>
-    {% endif %}
+        </div>
+        {% endwith %}
+        {% endfor %}
+    </div>
+    {% endfor %}
+
+  </div>
+</div>
+
+<!-- Schedule list -->
+<h2 class="text-2xl font-light mt-10 mb-4">Your Schedule</h2>
+
+{% if events %}
+<div class="grid gap-3 md:grid-cols-2">
+    {% for i in events %}
+    <div class="card bg-base-100">
+        <div class="card-body gap-1">
+            <h3 class="card-title">{{ i.event_name }}</h3>
+            <p class="text-sm opacity-70">
+                {{ i.start_time|date:"M d, Y H:i" }} to {{ i.end_time|date:"M d, Y H:i" }}
+            </p>
+            {% if i.event_description %}<p class="text-sm">{{ i.event_description }}</p>{% endif %}
+            <div class="card-actions mt-2">
+                <a href="{% url 'edit_event' i.id %}" class="btn btn-sm">Edit</a>
+                <a href="{% url 'delete_event' i.id %}" class="btn btn-sm btn-error">Delete</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card bg-base-100">
+    <div class="card-body items-center text-center">
+        <p class="opacity-70">No events added yet. Add your first event!</p>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}

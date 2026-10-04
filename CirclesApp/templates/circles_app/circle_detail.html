@@ -2,72 +2,165 @@
 {% load circle_extras %}
 {% block title %}{{ circle.circle_name }}{% endblock %}
 {% block content %}
-    <h2>{{ circle.circle_name }}</h2>
-    <p>Invite code: {{ circle.invite_code }}</p>
-    <p>Invite link: <a href="{% url 'join_circle' circle.invite_code %}">{% url 'join_circle' circle.invite_code %}</a></p>
 
-    <h3>Members</h3>
-    <ul>
-        {% for i in memberships %}
-            {% if i.user == request.user and i.role == 'owner' %}
-                <p><a href="{% url 'edit_circle' circle.id %}">Edit Circle</a> | <a href="{% url 'delete_circle' circle.id %}">Delete Circle</a></p>
-            {% elif i.user == request.user %}
-                <p><a href="{% url 'leave_circle' circle.id %}">Leave Circle</a></p>
-            {% endif %}
-        {% endfor %}
-    </ul>
+<!-- Header -->
+<div class="flex flex-wrap items-center gap-3 mb-2">
+    <h1 class="text-4xl font-light flex-1">{{ circle.circle_name }}</h1>
+    {% for i in memberships %}
+        {% if i.user == request.user and i.role == 'owner' %}
+            <a href="{% url 'edit_circle' circle.id %}" class="btn btn-sm">Edit Circle</a>
+            <a href="{% url 'delete_circle' circle.id %}" class="btn btn-sm btn-error">Delete Circle</a>
+        {% elif i.user == request.user %}
+            <a href="{% url 'leave_circle' circle.id %}" class="btn btn-sm btn-error">Leave Circle</a>
+        {% endif %}
+    {% endfor %}
+</div>
 
-    <h3>Availability</h3>
-    <p>
-        <a href="?week={{ prev_week|date:'Y-m-d' }}">← Previous week</a> |
-        <a href="?week={{ next_week|date:'Y-m-d' }}">Next week →</a>
-    </p>
-    {% if best_slot and best_slot.free > 0 %}
-    <div style="border:1px solid green; padding:8px; margin-bottom:10px;">
-        <strong>Best time to meet this week:</strong>
-        {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
-        — {{ best_slot.free }} of {{ best_slot.total }} members free
+<!-- Invite -->
+<div class="card bg-base-100 mb-6">
+    <div class="card-body gap-1 py-4">
+        <p class="text-sm">
+            Invite code:
+            <span class="badge badge-primary font-medium">{{ circle.invite_code }}</span>
+        </p>
+        <p class="text-sm">
+            Invite link:
+            <a href="{% url 'join_circle' circle.invite_code %}" class="link">{% url 'join_circle' circle.invite_code %}</a>
+        </p>
     </div>
-    {% endif %}
-    <table border="1" cellpadding="4">
-        <tr>
-            <th>Hour</th>
-            {% for day in days %}<th>{{ day|date:"D m/d" }}</th>{% endfor %}
-        </tr>
-        {% for row in grid %}
-        <tr>
-            <td>{{ row.hour }}:00</td>
-            {% for cell in row.cells %}
-                <td style="background: rgba(40,167,69,{{ cell.ratio|floatformat:2 }});">
-                    <a href="{% url 'time_block_detail' circle.id %}?start={{ cell.start|date:'Y-m-d\TH:i' }}&end={{ cell.end|date:'Y-m-d\TH:i' }}">
-                        {{ cell.free }}/{{ cell.total }}
-                        {% for l in cell.labels %}<br><strong>{{ l }}</strong>{% endfor %}
-                    </a>
-                </td>
-            {% endfor %}
-        </tr>
-        {% endfor %}
-    </table>
+</div>
 
-    <h3>Proposed Events</h3>
-    <p><a href="{% url 'propose_event' circle.id %}">Propose a new event</a></p>
+<!-- Members -->
+<h2 class="text-2xl font-light mb-3">Members</h2>
+<div class="flex flex-wrap gap-2 mb-8">
+    {% for i in memberships %}
+    <span class="badge badge-lg bg-base-100 border-0 gap-2">
+        {{ i.user.username }}
+        {% if i.role == 'owner' %}<span class="opacity-60 text-xs">owner</span>{% endif %}
+    </span>
+    {% endfor %}
+</div>
+
+<!-- Availability -->
+<div class="flex flex-wrap items-center gap-3 mb-4">
+    <h2 class="text-2xl font-light flex-1">Availability</h2>
+    <a href="?week={{ prev_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">←</a>
+    <span class="px-4 py-1 rounded-full bg-base-100 text-sm">
+        {{ days.0|date:"M d" }} – {{ days.6|date:"M d, Y" }}
+    </span>
+    <a href="?week={{ next_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">→</a>
+</div>
+
+{% if best_slot and best_slot.free > 0 %}
+<div class="rounded-3xl bg-primary p-5 mb-4">
+    <p class="text-sm opacity-70">Best time to meet this week</p>
+    <p class="text-xl font-medium">
+        {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
+    </p>
+    <p class="text-sm">{{ best_slot.free }} of {{ best_slot.total }} members free</p>
+</div>
+{% endif %}
+
+<div class="overflow-x-auto">
+  <div class="min-w-[56rem] rounded-3xl bg-base-100 p-3">
+
+    <!-- Day headers -->
+    <div class="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] gap-2 pb-2">
+        <div></div>
+        {% for day in days %}
+        <div class="rounded-full text-center py-2 text-sm bg-base-200">
+            {{ day|date:"D" }} <span class="opacity-60">{{ day|date:"m/d" }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Hour labels + day columns -->
+    <div class="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] gap-2">
+
+        <div>
+            {% for row in grid %}
+            <div class="h-16 border-t border-base-300 text-xs opacity-60 pt-2">{{ row.hour }}:00</div>
+            {% endfor %}
+        </div>
+
+        {% for day in days %}
+        {% with i=forloop.counter0 %}
+        <div class="relative">
+
+            <!-- Clickable hour slots (blank when everyone is free) -->
+            {% for cell in grid|column:i %}
+            <a href="{% url 'time_block_detail' circle.id %}?start={{ cell.start|date:'Y-m-d\TH:i' }}&end={{ cell.end|date:'Y-m-d\TH:i' }}"
+               class="block h-16 border-t border-base-300 hover:bg-base-200 transition"></a>
+            {% endfor %}
+
+            <!-- Merged busy blocks -->
+            {% for b in grid|busy_blocks:i %}
+            <a href="{% url 'time_block_detail' circle.id %}?start={{ b.start|date:'Y-m-d\TH:i' }}&end={{ b.end|date:'Y-m-d\TH:i' }}"
+               class="absolute inset-x-0 z-10 overflow-hidden rounded-2xl px-3 py-2 text-xs hover:ring-2 hover:ring-neutral transition"
+               style="top: calc({{ b.hour }} * 4rem + 2px);
+                      height: calc({{ b.span }} * 4rem - 4px);
+                      background: {{ b.color }};
+                      color: {{ b.text }};">
+                <p class="font-medium">{{ b.free }}/{{ b.total }} free</p>
+                {% for l in b.labels %}<p class="font-medium opacity-80">{{ l }}</p>{% endfor %}
+            </a>
+            {% endfor %}
+
+        </div>
+        {% endwith %}
+        {% endfor %}
+
+    </div>
+  </div>
+</div>
+
+<div class="flex items-center gap-3 text-xs opacity-70 mt-3">
+    <span>Everyone free</span>
+    <span class="w-6 h-3 rounded-full bg-base-100 border border-base-300"></span>
+    <span class="w-24 h-3 rounded-full" style="background: linear-gradient(to right, rgb(252,218,212), rgb(196,28,40));"></span>
+    <span>Everyone busy</span>
+</div>
+
+<!-- Proposed events -->
+<div class="flex items-center gap-3 mt-10 mb-4">
+    <h2 class="text-2xl font-light flex-1">Proposed Events</h2>
+    <a href="{% url 'propose_event' circle.id %}" class="btn btn-neutral btn-sm">Propose a new event</a>
+</div>
+
+<div class="grid gap-4 md:grid-cols-2">
     {% for proposal in proposals %}
-        <div class="proposal">
-            <strong>{{ proposal.event_name }}</strong>
-            ({{ proposal.start_time|date:"M d, Y H:i" }} – {{ proposal.end_time|date:"M d, Y H:i" }})
-            <p>{{ proposal.event_description }}</p>
-            <p>{{ proposal.yes_votes }} yes / {{ proposal.no_votes }} no (needs a majority of {{ proposal.total_members }} members)</p>
+    <div class="card bg-base-100">
+        <div class="card-body gap-2">
+            <h3 class="card-title">{{ proposal.event_name }}</h3>
+            <p class="text-sm opacity-70">
+                {{ proposal.start_time|date:"M d, Y H:i" }} – {{ proposal.end_time|date:"M d, Y H:i" }}
+            </p>
+            {% if proposal.event_description %}<p class="text-sm">{{ proposal.event_description }}</p>{% endif %}
+
+            <progress class="progress progress-neutral w-full" value="{{ proposal.yes_votes }}" max="{{ proposal.total_members }}"></progress>
+            <p class="text-xs opacity-70">
+                {{ proposal.yes_votes }} yes / {{ proposal.no_votes }} no
+                (needs a majority of {{ proposal.total_members }} members)
+            </p>
+
             {% if proposal.id in user_votes %}
-                <p>Your vote: {{ user_votes|get_item:proposal.id }}</p>
+                <p class="text-sm">Your vote: <span class="badge badge-primary">{{ user_votes|get_item:proposal.id }}</span></p>
             {% else %}
-                <form method="POST" action="{% url 'vote_proposal' proposal.id %}">
+                <form method="POST" action="{% url 'vote_proposal' proposal.id %}" class="card-actions mt-1">
                     {% csrf_token %}
-                    <button type="submit" name="choice" value="yes">Vote Yes</button>
-                    <button type="submit" name="choice" value="no">Vote No</button>
+                    <button type="submit" name="choice" value="yes" class="btn btn-primary btn-sm">Vote Yes</button>
+                    <button type="submit" name="choice" value="no" class="btn btn-sm">Vote No</button>
                 </form>
             {% endif %}
         </div>
+    </div>
     {% empty %}
-        <p>No events proposed yet.</p>
+    <div class="card bg-base-100 md:col-span-2">
+        <div class="card-body items-center text-center">
+            <p class="opacity-70">No events proposed yet.</p>
+        </div>
+    </div>
     {% endfor %}
+</div>
+
 {% endblock %}

@@ -1,0 +1,44 @@
+{
+  "name": "circles",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "tailwindcss -i ./CirclesApp/static/styles/input.css -o ./CirclesApp/static/styles/output.css --watch",
+    "build": "tailwindcss -i ./CirclesApp/static/styles/input.css -o ./CirclesApp/static/styles/output.css --minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kinowhat/CPE106L_Project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kinowhat/CPE106L_Project/issues"
+  },
+  "homepage": "https://github.com/kinowhat/CPE106L_Project#readme",
+  "devDependencies": {
+    "autoprefixer": "^10.6.1",
+    "daisyui": "^5.7.47",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3"
+  },
+  "dependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "baseline-browser-mapping": "^2.11.27",
+    "browserslist": "^4.29.3",
+    "caniuse-lite": "^1.0.30001814",
+    "electron-to-chromium": "^1.5.444",
+    "escalade": "^3.2.0",
+    "fraction.js": "^5.3.4",
+    "nanoid": "^3.3.19",
+    "node-releases": "^2.0.57",
+    "picocolors": "^1.1.1",
+    "postcss-value-parser": "^4.2.0",
+    "source-map-js": "^1.2.2",
+    "update-browserslist-db": "^1.3.3"
+  }
+}

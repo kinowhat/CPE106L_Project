@@ -1,32 +1,91 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="circles">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Circles{% endblock %}</title>
-    <link rel="stylesheet" type="text/css" href="{% static 'styles/styles.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="{% static 'styles/output.css' %}">
 </head>
-<body>
-    <nav>
-        <a href="{% url 'home' %}">Home</a>
-        {% if request.user.is_authenticated %}
-            | <a href="{% url 'calendar' %}">My Calendar</a>
-            | <a href="{% url 'profile_settings' %}">Timezone</a>
-            | <form method="POST" action="{% url 'logout' %}" style="display:inline;">
-                {% csrf_token %}<button type="submit">Logout</button>
-              </form>
-        {% else %}
-            | <a href="{% url 'login' %}">Login</a>
-            | <a href="{% url 'register' %}">Register</a>
-        {% endif %}
-    </nav>
-    <hr>
-    {% if messages %}
-        {% for message in messages %}
-            <p>{{ message }}</p>
-        {% endfor %}
+<body class="bg-base-200 font-sans text-base-content p-4">
+
+<div class="flex gap-4 min-h-[calc(100vh-2rem)]">
+
+    {% if request.user.is_authenticated %}
+    <!-- Sidebar (logged in, desktop) -->
+    <aside class="hidden md:flex flex-col w-56 shrink-0 rounded-3xl bg-neutral text-neutral-content p-4">
+        <a href="{% url 'home' %}" class="text-2xl font-semibold mb-6 px-2">circles</a>
+
+        <ul class="menu w-full p-0 gap-1">
+            <li>
+                <a href="{% url 'home' %}"
+                   class="rounded-full {% if request.resolver_match.url_name == 'home' %}bg-primary text-primary-content{% endif %}">
+                    Home
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'calendar' %}"
+                   class="rounded-full {% if request.resolver_match.url_name == 'calendar' %}bg-primary text-primary-content{% endif %}">
+                    My Calendar
+                </a>
+            </li>
+            <li>
+                <a href="{% url 'profile_settings' %}"
+                   class="rounded-full {% if request.resolver_match.url_name == 'profile_settings' %}bg-primary text-primary-content{% endif %}">
+                    Timezone
+                </a>
+            </li>
+        </ul>
+
+        <form method="POST" action="{% url 'logout' %}" class="mt-auto">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-ghost w-full justify-start rounded-full">Logout</button>
+        </form>
+    </aside>
     {% endif %}
-    {% block content %}{% endblock %}
+
+    <!-- Main column -->
+    <main class="flex-1 min-w-0">
+
+        {% if request.user.is_authenticated %}
+        <!-- Top bar (logged in, mobile only) -->
+        <div class="md:hidden navbar bg-neutral text-neutral-content rounded-full mb-4 px-4">
+            <a href="{% url 'home' %}" class="font-semibold text-xl flex-1">circles</a>
+            <a href="{% url 'calendar' %}" class="btn btn-ghost btn-sm rounded-full">Calendar</a>
+            <a href="{% url 'profile_settings' %}" class="btn btn-ghost btn-sm rounded-full">Timezone</a>
+            <form method="POST" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-ghost btn-sm rounded-full">Logout</button>
+            </form>
+        </div>
+        {% else %}
+        <!-- Top bar (logged out) -->
+        <div class="navbar bg-neutral text-neutral-content rounded-full px-6 mb-6">
+            <a href="{% url 'home' %}" class="font-semibold text-xl flex-1">circles</a>
+            <a href="{% url 'login' %}" class="btn btn-ghost btn-sm rounded-full">Login</a>
+            <a href="{% url 'register' %}" class="btn btn-primary btn-sm rounded-full">Register</a>
+        </div>
+        {% endif %}
+
+        <!-- Django messages -->
+        {% if messages %}
+        <div class="flex flex-col gap-2 mb-4">
+            {% for message in messages %}
+            <div role="alert" class="alert rounded-2xl
+                {% if message.tags == 'error' %}alert-error
+                {% elif message.tags == 'success' %}alert-success
+                {% elif message.tags == 'warning' %}alert-warning
+                {% else %}alert-info{% endif %}">
+                <span>{{ message }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+</div>
+
 </body>
 </html>

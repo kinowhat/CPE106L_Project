@@ -1,11 +1,30 @@
 {% extends 'base.html' %}
 {% block title %}Time Block{% endblock %}
 {% block content %}
-    <h2>{{ circle.circle_name }} — {{ cell_start|date:"D M d, H:i" }} to {{ cell_end|date:"H:i" }}</h2>
-    <ul>
-        {% for e in entries %}
-            <li>{{ e.user }}: {% if e.masked %}Busy{% else %}<strong>{{ e.name }}</strong> — {{ e.description }}{% endif %}</li>
-        {% endfor %}
-    </ul>
-    <a href="{% url 'circle_detail' circle.id %}">Back to circle</a>
+<a href="{% url 'circle_detail' circle.id %}" class="btn btn-sm mb-4">← Back to circle</a>
+
+<h1 class="text-3xl font-light">{{ circle.circle_name }}</h1>
+<p class="opacity-70 mb-6">{{ cell_start|date:"D M d, H:i" }} to {{ cell_end|date:"H:i" }}</p>
+
+<div class="grid gap-3 md:grid-cols-2">
+    {% for e in entries %}
+    <div class="card {% if e.masked %}bg-base-300{% else %}bg-secondary{% endif %}">
+        <div class="card-body gap-1 py-4">
+            <p class="text-sm opacity-70">{{ e.user }}</p>
+            {% if e.masked %}
+                <p class="font-medium">Busy</p>
+            {% else %}
+                <p class="font-medium">{{ e.name }}</p>
+                {% if e.description %}<p class="text-sm">{{ e.description }}</p>{% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div class="card bg-base-100 md:col-span-2">
+        <div class="card-body items-center text-center">
+            <p class="opacity-70">Everyone is free in this time block.</p>
+        </div>
+    </div>
+    {% endfor %}
+</div>
 {% endblock %}

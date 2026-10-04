@@ -1,11 +1,18 @@
 {% extends 'base.html' %}
 {% block title %}Import Calendar{% endblock %}
 {% block content %}
-    <h2>Import from Google Calendar</h2>
-    <p>In Google Calendar: Settings → (pick a calendar) → Export. Unzip and upload the .ics file here.</p>
-    <form method="POST" enctype="multipart/form-data">
+<div class="card bg-base-100 w-full max-w-lg mx-auto mt-10">
+    <form method="POST" enctype="multipart/form-data" class="card-body styled-form">
         {% csrf_token %}
+        <h1 class="text-3xl font-light mb-1">Import from Google Calendar</h1>
+        <p class="text-sm opacity-70 mb-2">
+            In Google Calendar: Settings → (pick a calendar) → Export. Unzip and upload the .ics file here.
+        </p>
         {{ form.as_p }}
-        <button type="submit">Import</button>
+        <div class="flex gap-2 mt-2">
+            <a href="{% url 'calendar' %}" class="btn flex-1">Cancel</a>
+            <button type="submit" class="btn btn-primary flex-1">Import</button>
+        </div>
     </form>
+</div>
 {% endblock %}

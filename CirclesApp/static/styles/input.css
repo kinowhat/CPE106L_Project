@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@source "../../templates";
+
+@plugin "daisyui" {
+  themes: false;
+}
+
+@plugin "daisyui/theme" {
+  name: "circles";
+  default: true;
+  color-scheme: light;
+
+  --color-base-100: #fffdf7;
+  --color-base-200: #f6f0e1;
+  --color-base-300: #ebe3cf;
+  --color-base-content: #1c1c1c;
+
+  --color-primary: #ffd75a;
+  --color-primary-content: #1c1c1c;
+  --color-secondary: #b9c9f0;
+  --color-secondary-content: #1c1c1c;
+  --color-accent: #f7b8d2;
+  --color-accent-content: #1c1c1c;
+  --color-neutral: #1c1c1c;
+  --color-neutral-content: #f6f0e1;
+
+  --color-info: #b9c9f0;
+  --color-info-content: #1c1c1c;
+  --color-success: #bfe3b4;
+  --color-success-content: #1c1c1c;
+  --color-warning: #ffd75a;
+  --color-warning-content: #1c1c1c;
+  --color-error: #f4a8a0;
+  --color-error-content: #1c1c1c;
+
+  --radius-box: 1.5rem;
+  --radius-field: 9999px;
+  --radius-selector: 9999px;
+  --border: 1px;
+  --depth: 0;
+}
+
+@theme {
+  --font-sans: "Outfit", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Styles for Django-rendered forms ({{ form.as_p }}) */
+.styled-form input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
+.styled-form select,
+.styled-form textarea {
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: var(--color-base-100);
+  border: 1px solid var(--color-base-300);
+  border-radius: 9999px;
+  outline: none;
+}
+.styled-form textarea { border-radius: 1.5rem; }
+.styled-form input:focus,
+.styled-form select:focus,
+.styled-form textarea:focus {
+  border-color: var(--color-neutral);
+}
+.styled-form p { margin-bottom: 0.75rem; }
+.styled-form label { display: block; font-size: 0.875rem; margin-bottom: 0.25rem; }
+.styled-form .helptext,
+.styled-form ul.errorlist { font-size: 0.75rem; opacity: 0.7; list-style: none; padding: 0; }
+.styled-form ul.errorlist { color: var(--color-error); opacity: 1; }
+
+/* File upload */
+.styled-form input[type="file"] {
+  width: 100%;
+  padding: 1.5rem 1rem;
+  background: var(--color-base-200);
+  border: 2px dashed var(--color-base-300);
+  border-radius: 1.5rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.styled-form input[type="file"]:hover {
+  border-color: var(--color-neutral);
+}
+.styled-form input[type="file"]::file-selector-button {
+  margin-right: 1rem;
+  padding: 0.5rem 1.25rem;
+  border: 0;
+  border-radius: 9999px;
+  background: var(--color-neutral);
+  color: var(--color-neutral-content);
+  font-weight: 500;
+  cursor: pointer;
+}

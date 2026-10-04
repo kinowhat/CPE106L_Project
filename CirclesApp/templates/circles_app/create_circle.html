@@ -1,10 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}Create a Circle{% endblock %}
 {% block content %}
-    <h2>Create a Circle</h2>
-    <form method="POST" action="{% url 'create_circle' %}">
+
+<div class="card bg-base-100 w-full max-w-md mx-auto mt-10">
+    <form method="POST" action="{% url 'create_circle' %}" class="card-body gap-2 styled-form">
         {% csrf_token %}
+        <h1 class="text-3xl font-light mb-2">Create a Circle</h1>
+        <p class="text-sm opacity-70 mb-2">Give your circle a name, then share the invite code with friends.</p>
+
         {{ form.as_p }}
-        <button type="submit">Create</button>
+
+        <div class="flex gap-2 mt-4">
+            <a href="{% url 'home' %}" class="btn flex-1">Cancel</a>
+            <button type="submit" class="btn btn-primary flex-1">Create</button>
+        </div>
     </form>
+</div>
+
 {% endblock %}

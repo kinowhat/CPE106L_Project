@@ -1,11 +1,16 @@
 {% extends 'base.html' %}
 {% block title %}Propose Event{% endblock %}
 {% block content %}
-    <h2>Propose an Event for {{ circle.circle_name }}</h2>
-    <form method="POST" action="{% url 'propose_event' circle.id %}">
+<div class="card bg-base-100 w-full max-w-lg mx-auto mt-10">
+    <form method="POST" action="{% url 'propose_event' circle.id %}" class="card-body styled-form">
         {% csrf_token %}
+        <h1 class="text-3xl font-light mb-1">Propose an Event</h1>
+        <p class="text-sm opacity-70 mb-2">for {{ circle.circle_name }}</p>
         {{ form.as_p }}
-        <button type="submit">Propose Event</button>
+        <div class="flex gap-2 mt-2">
+            <a href="{% url 'circle_detail' circle.id %}" class="btn flex-1">Back</a>
+            <button type="submit" class="btn btn-primary flex-1">Propose Event</button>
+        </div>
     </form>
-    <p><a href="{% url 'circle_detail' circle.id %}">Back to {{ circle.circle_name }}</a></p>
+</div>
 {% endblock %}

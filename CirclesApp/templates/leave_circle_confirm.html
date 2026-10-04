@@ -1,10 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Leave Circle{% endblock %}
 {% block content %}
-    <h2>Leave "{{ circle.circle_name }}"?</h2>
-    <form method="POST">
+<div class="card bg-base-100 w-full max-w-md mx-auto mt-10 text-center">
+    <form method="POST" class="card-body items-center gap-3">
         {% csrf_token %}
-        <button type="submit">Yes, leave</button>
+        <h1 class="text-3xl font-light">Leave "{{ circle.circle_name }}"?</h1>
+        <p class="opacity-70">You can rejoin later with the invite code.</p>
+        <div class="flex gap-2 w-full mt-2">
+            <a href="{% url 'circle_detail' circle.id %}" class="btn flex-1">Cancel</a>
+            <button type="submit" class="btn btn-error flex-1">Yes, leave</button>
+        </div>
     </form>
-    <a href="{% url 'circle_detail' circle.id %}">Cancel</a>
+</div>
 {% endblock %}

@@ -1,11 +1,17 @@
 {% extends 'base.html' %}
 {% block title %}Delete Event{% endblock %}
 {% block content %}
-    <h2>Delete "{{ event.event_name }}"?</h2>
-    <p>{{ event.start_time|date:"M d, Y H:i" }} to {{ event.end_time|date:"M d, Y H:i" }}</p>
-    <form method="POST">
+<div class="card bg-base-100 w-full max-w-md mx-auto mt-10 text-center">
+    <form method="POST" class="card-body items-center gap-3">
         {% csrf_token %}
-        <button type="submit">Yes, delete it</button>
+        <h1 class="text-3xl font-light">Delete "{{ event.event_name }}"?</h1>
+        <p class="opacity-70">
+            {{ event.start_time|date:"M d, Y H:i" }} to {{ event.end_time|date:"M d, Y H:i" }}
+        </p>
+        <div class="flex gap-2 w-full mt-2">
+            <a href="{% url 'calendar' %}" class="btn flex-1">Cancel</a>
+            <button type="submit" class="btn btn-error flex-1">Yes, delete it</button>
+        </div>
     </form>
-    <a href="{% url 'calendar' %}">Cancel</a>
+</div>
 {% endblock %}

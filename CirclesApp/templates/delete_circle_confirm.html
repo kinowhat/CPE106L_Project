@@ -1,11 +1,15 @@
 {% extends 'base.html' %}
 {% block title %}Delete Circle{% endblock %}
 {% block content %}
-    <h2>Delete "{{ circle.circle_name }}"?</h2>
-    <p>This will remove the circle for every member and delete all its shared events.</p>
-    <form method="POST">
+<div class="card bg-base-100 w-full max-w-md mx-auto mt-10 text-center">
+    <form method="POST" class="card-body items-center gap-3">
         {% csrf_token %}
-        <button type="submit">Yes, delete it</button>
+        <h1 class="text-3xl font-light">Delete "{{ circle.circle_name }}"?</h1>
+        <p class="opacity-70">This will remove the circle for every member and delete all its shared events.</p>
+        <div class="flex gap-2 w-full mt-2">
+            <a href="{% url 'circle_detail' circle.id %}" class="btn flex-1">Cancel</a>
+            <button type="submit" class="btn btn-error flex-1">Yes, delete it</button>
+        </div>
     </form>
-    <a href="{% url 'circle_detail' circle.id %}">Cancel</a>
+</div>
 {% endblock %}
