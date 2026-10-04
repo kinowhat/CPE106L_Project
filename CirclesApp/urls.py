@@ -24,4 +24,5 @@ urlpatterns = [
     path('calendar/export/', views.export_calendar_view, name='export_calendar'),
     path('circles/<int:circle_id>/quick_approve/', views.quick_approve_view, name='quick_approve'),
     path('circles/<int:circle_id>/export/', views.export_circle_calendar_view, name='export_circle_calendar'),
+    path('account_settings', views.account_settings_view, name='account_settings'),
 ]

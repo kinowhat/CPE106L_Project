@@ -5,7 +5,6 @@ from . models import Circle, User, Event, UserProfile, TIMEZONE_CHOICES
 class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     password_confirm = forms.CharField(widget=forms.PasswordInput, label="Confirm Password")
-  
 
     class Meta:
         model = User
@@ -25,6 +24,15 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
         fields = ['timezone']
+
+# For editing account info
+class AccountForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'email']
+
+class DeleteAccountForm(forms.Form):
+    password = forms.CharField(widget=forms.PasswordInput, label="Confirm your password")
 
 class CircleForm(forms.ModelForm):
     class Meta:
@@ -59,9 +67,10 @@ class CalendarForm(forms.ModelForm):
         if num_weeks and not weekdays:
             raise forms.ValidationError("Choose which days the event repeats on.")
         return cleaned_data
+
 class JoinCircleForm(forms.Form):
-    invite_code = forms.CharField(max_length=12, label = "Invite Code")
-    
+    invite_code = forms.CharField(max_length=12, label="Invite Code")
+
 class EventProposalForm(forms.ModelForm):
     start_time = forms.DateTimeField(
         input_formats=['%Y-%m-%dT%H:%M'],

@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Account Settings{% endblock %}
+{% block content %}
+<h2 class="text-2xl font-light mb-4">Account Settings</h2>
+
+<div class="card bg-base-100 mb-6">
+    <div class="card-body">
+        <h3 class="card-title">Edit Profile</h3>
+        <form method="POST" class="styled-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit">
+            {{ account_form.as_p }}
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+    </div>
+</div>
+
+<div class="card bg-error text-error-content">
+    <div class="card-body">
+        <h3 class="card-title">Delete Account</h3>
+        <p class="text-sm opacity-80">This permanently deletes your account, your personal calendar, and your memberships in every circle. This cannot be undone.</p>
+        <form method="POST" class="styled-form" onsubmit="return confirm('Are you sure you want to delete your account? This cannot be undone.');">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="delete">
+            {{ delete_form.as_p }}
+            <button type="submit" class="btn btn-neutral">Delete My Account</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

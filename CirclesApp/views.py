@@ -2,7 +2,10 @@ from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
-from . forms import RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm, ProfileForm, EventForm, ICSUploadForm
+from . forms import (
+    RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm,
+    ProfileForm, EventForm, ICSUploadForm, AccountForm, DeleteAccountForm,
+)
 from . models import Circle, Membership, Event, ProposalVote, UserProfile
 from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse
@@ -13,7 +16,8 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.mail import send_mail
 from icalendar import Calendar as ICalCalendar, Event as ICalEvent
 
-HOURS = range(0,24)
+HOURS = range(0, 24)
+
 
 def notify_circle_members(circle, subject, message, exclude_user=None):
     recipients = Membership.objects.filter(circle=circle).exclude(user=exclude_user).select_related('user')
@@ -21,8 +25,8 @@ def notify_circle_members(circle, subject, message, exclude_user=None):
     if emails:
         send_mail(subject, message, None, emails, fail_silently=True)
 
-def get_week_monday(request):
 
+def get_week_monday(request):
     day = None
     week_param = request.GET.get('week')
     if week_param:
@@ -33,6 +37,7 @@ def get_week_monday(request):
     if day is None:
         day = timezone.localdate()
     return day - timedelta(days=day.weekday())
+
 
 def logout_view(request):
     if request.method == "POST":
@@ -48,21 +53,21 @@ def register_view(request):
             username = form.cleaned_data.get("username")
             password = form.cleaned_data.get("password")
             user = User.objects.create_user(
-                username = username, 
-                password = password,
+                username=username,
+                password=password,
                 email=form.cleaned_data.get('email', '')
-                )
+            )
             UserProfile.objects.create(user=user)
             login(request, user)
             return redirect('home')
-    else: 
+    else:
         form = RegisterForm()
-    return render(request, 'accounts/register.html', {'form':form})
+    return render(request, 'accounts/register.html', {'form': form})
 
 
 def login_view(request):
     error_message = None
- 
+
     if request.method == "POST":
         username = request.POST.get("username")
         password = request.POST.get("password")
@@ -87,12 +92,13 @@ def create_circles_view(request):
         form = CircleForm(request.POST)
         if form.is_valid():
             circle = form.save()
-            Membership.objects.create(user = request.user, circle = circle, role = 'owner')
+            Membership.objects.create(user=request.user, circle=circle, role='owner')
             return redirect('home')
     else:
         form = CircleForm()
 
-    return render(request, 'circles_app/create_circle.html', {'form':form})
+    return render(request, 'circles_app/create_circle.html', {'form': form})
+
 
 @login_required
 def calendar_view(request):
@@ -152,9 +158,10 @@ def calendar_view(request):
         'prev_week': monday - timedelta(days=7), 'next_week': monday + timedelta(days=7),
     })
 
+
 @login_required
 def circle_detail_view(request, circle_id):
-    circle = get_object_or_404(Circle, id = circle_id)
+    circle = get_object_or_404(Circle, id=circle_id)
     is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
     if not is_member:
         raise Http404
@@ -202,7 +209,7 @@ def circle_detail_view(request, circle_id):
 
     best_slot = None
     best_score = None
-    if total_members > 1:   
+    if total_members > 1:
         for row in grid:
             penalty = SLEEP_PENALTY if row['hour'] in SLEEP_HOURS else 0
             for cell in row['cells']:
@@ -250,6 +257,7 @@ def join_circle_view(request, code):
         return redirect('circle_detail', circle_id=circle.id)
     return render(request, 'circles_app/join_preview.html', {'circle': circle, 'already_member': already_member})
 
+
 @login_required
 def find_circle_view(request):
     if request.method == "POST":
@@ -263,7 +271,7 @@ def find_circle_view(request):
         else:
             messages.error(request, "Please enter an invite code.")
     return redirect('home')
-    
+
 
 @login_required
 def home_view(request):
@@ -359,6 +367,7 @@ def vote_proposal_view(request, proposal_id):
 
     return redirect('circle_detail', circle_id=proposal.circle.id)
 
+
 @login_required
 def profile_settings_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -371,6 +380,36 @@ def profile_settings_view(request):
     else:
         form = ProfileForm(instance=profile)
     return render(request, 'circles_app/profile_settings.html', {'form': form})
+
+
+@login_required
+def account_settings_view(request):
+    account_form = AccountForm(instance=request.user)
+    delete_form = DeleteAccountForm()
+
+    if request.method == "POST":
+        if request.POST.get('action') == 'edit':
+            account_form = AccountForm(request.POST, instance=request.user)
+            if account_form.is_valid():
+                account_form.save()
+                messages.success(request, "Account updated.")
+                return redirect('account_settings')
+        elif request.POST.get('action') == 'delete':
+            delete_form = DeleteAccountForm(request.POST)
+            if delete_form.is_valid():
+                if request.user.check_password(delete_form.cleaned_data['password']):
+                    user = request.user
+                    logout(request)
+                    user.delete()
+                    messages.success(request, "Your account has been deleted.")
+                    return redirect('home')
+                else:
+                    delete_form.add_error('password', "Incorrect password.")
+
+    return render(request, 'circles_app/account_settings.html', {
+        'account_form': account_form, 'delete_form': delete_form,
+    })
+
 
 @login_required
 def time_block_detail_view(request, circle_id):
@@ -402,6 +441,7 @@ def time_block_detail_view(request, circle_id):
     return render(request, 'circles_app/time_block_detail.html', {
         'circle': circle, 'cell_start': cell_start, 'cell_end': cell_end, 'entries': entries,
     })
+
 
 @login_required
 def import_calendar_view(request):
@@ -440,6 +480,7 @@ def import_calendar_view(request):
         form = ICSUploadForm()
     return render(request, 'circles_app/import_calendar.html', {'form': form})
 
+
 @login_required
 def export_calendar_view(request):
     cal = ICalCalendar()
@@ -458,11 +499,13 @@ def export_calendar_view(request):
     response['Content-Disposition'] = 'attachment; filename="my_calendar.ics"'
     return response
 
+
 def _ics_value_to_aware(value, end_of_day):
     if isinstance(value, datetime):
         return value if timezone.is_aware(value) else timezone.make_aware(value)
     clock = time.max if end_of_day else time.min
     return timezone.make_aware(datetime.combine(value, clock))
+
 
 # CRUD FUNCTIONS FOR EVENTS, CIRCLES
 
@@ -488,6 +531,7 @@ def delete_event_view(request, event_id):
         messages.success(request, "Event deleted.")
         return redirect('calendar')
     return render(request, 'circles_app/delete_event_confirm.html', {'event': event})
+
 
 @login_required
 def edit_circle_view(request, circle_id):
@@ -518,6 +562,7 @@ def delete_circle_view(request, circle_id):
         return redirect('home')
     return render(request, 'circles_app/delete_circle_confirm.html', {'circle': circle})
 
+
 @login_required
 def leave_circle_view(request, circle_id):
     circle = get_object_or_404(Circle, id=circle_id)
@@ -530,6 +575,7 @@ def leave_circle_view(request, circle_id):
         messages.success(request, f"You left {circle.circle_name}.")
         return redirect('home')
     return render(request, 'circles_app/leave_circle_confirm.html', {'circle': circle})
+
 
 @login_required
 def quick_approve_view(request, circle_id):
@@ -565,6 +611,7 @@ def quick_approve_view(request, circle_id):
     else:
         form = EventProposalForm()
     return render(request, 'circles_app/quick_approve.html', {'form': form, 'circle': circle})
+
 
 @login_required
 def export_circle_calendar_view(request, circle_id):
