@@ -42,6 +42,7 @@ def register_view(request):
             username = form.cleaned_data.get("username")
             password = form.cleaned_data.get("password")
             user = User.objects.create_user(username = username, password = password)
+            UserProfile.objects.create(user=user, timezone=form.cleaned_data['timezone'])
             login(request, user)
             return redirect('home')
     else: 

@@ -3,6 +3,7 @@ import secrets
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.utils.timezone import localdate
+import zoneinfo
 # Create your models here.
 def create_code():
     return secrets.token_urlsafe(6)
@@ -79,6 +80,11 @@ class ProposalVote(models.Model):
 
     class Meta:
         unique_together = ('event', 'user')
+
+# TIMEZONE ADJUSTING FOR USERS
     
+TIMEZONE_CHOICES = [(tz, tz) for tz in sorted(zoneinfo.available_timezones()) if '/' in tz]
 
-
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    timezone = models.CharField(max_length=64, choices=TIMEZONE_CHOICES, default='Asia/Manila')

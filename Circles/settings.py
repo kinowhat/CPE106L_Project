@@ -25,6 +25,14 @@ SECRET_KEY = 'django-insecure-zk&6gqt6=c74ss_8r(^&_eu-*!qcs^+t8d98-job*u20ra+jv@
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+MIDDLEWARE = [
+  
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'CirclesApp.middleware.TimezoneMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+   
+]
+
 ALLOWED_HOSTS = []
 
 

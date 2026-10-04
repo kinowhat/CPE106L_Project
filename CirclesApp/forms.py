@@ -5,10 +5,11 @@ from . models import Circle, User, Event
 class RegisterForm(forms.ModelForm):
     password = forms.CharField(widget=forms.PasswordInput)
     password_confirm = forms.CharField(widget=forms.PasswordInput, label="Confirm Password")
+    timezone = forms.ChoiceField(choices=TIMEZONE_CHOICES, initial='Asia/Manila')
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'password_confirm']
+        fields = ['username', 'password', 'password_confirm', 'timezone']
 
     def clean(self):
         cleaned_data = super().clean()
@@ -41,11 +42,7 @@ class CalendarForm(forms.ModelForm):
             raise forms.ValidationError("Start and End times are in the wrong order!")
         return cleaned_data
 
-class CalendarForm(forms.ModelForm):
-    WEEKDAY_CHOICES = [
-        (0, 'Monday'), (1, 'Tuesday'), (2, 'Wednesday'),
-        (3, 'Thursday'), (4, 'Friday'), (5, 'Saturday'), (6, 'Sunday'),
-    ]
+
 
     start_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
     end_time = forms.DateTimeField(widget=forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}))
