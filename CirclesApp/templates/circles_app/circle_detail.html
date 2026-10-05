@@ -3,175 +3,266 @@
 {% block title %}{{ circle.circle_name }}{% endblock %}
 {% block content %}
 
-<!-- Header -->
-<div class="flex flex-wrap items-center gap-3 mb-2">
-    <h1 class="text-4xl font-light flex-1">{{ circle.circle_name }}</h1>
-    {% for i in memberships %}
-        {% if i.user == request.user and i.role == 'owner' %}
-            <a href="{% url 'quick_approve' circle.id %}">Quick Add Event</a>
-            <a href="{% url 'edit_circle' circle.id %}" class="btn btn-sm">Edit Circle</a>
-            <a href="{% url 'delete_circle' circle.id %}" class="btn btn-sm btn-error">Delete Circle</a>
-        {% elif i.user == request.user %}
-            <a href="{% url 'leave_circle' circle.id %}" class="btn btn-sm btn-error">Leave Circle</a>
-        {% endif %}
-    {% endfor %}
-</div>
-
-<!-- Invite -->
-<div class="flex items-center gap-2">
-    <code id="invite-link" class="text-sm">{{ request.scheme }}://{{ request.get_host }}{% url 'join_circle' circle.invite_code %}</code>
-    <button type="button" class="btn btn-xs"
-        onclick="navigator.clipboard.writeText(document.getElementById('invite-link').textContent); this.textContent='Copied!'">
-        Copy
-    </button>
-</div>
-
-<!-- Members -->
-<h2 class="text-2xl font-light mb-3">Members</h2>
-<div class="flex flex-wrap gap-2 mb-8">
-    {% for i in memberships %}
-    <span class="badge badge-lg bg-base-100 border-0 gap-2">
-        {{ i.user.username }}
-        {% if i.role == 'owner' %}<span class="opacity-60 text-xs">owner</span>{% endif %}
-    </span>
-    {% endfor %}
-</div>
-
-<!-- Availability -->
-<div class="flex flex-wrap items-center gap-3 mb-4">
-    <h2 class="text-2xl font-light flex-1">Availability</h2>
-    <a href="?week={{ prev_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">←</a>
-    <span class="px-4 py-1 rounded-full bg-base-100 text-sm">
-        {{ days.0|date:"M d" }} – {{ days.6|date:"M d, Y" }}
-    </span>
-    <a href="?week={{ next_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">→</a>
-</div>
-
-{% if best_slot and best_slot.free > 0 %}
-<div class="rounded-3xl bg-primary p-5 mb-4">
-    <p class="text-sm opacity-70">Best time to meet this week</p>
-    <p class="text-xl font-medium">
-        {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
-    </p>
-    <p class="text-sm">{{ best_slot.free }} of {{ best_slot.total }} members free</p>
-</div>
-{% endif %}
-
-<a href="{% url 'export_circle_calendar' circle.id %}" class="btn btn-sm">Export Circle Calendar (.ics)</a>
-
-<div class="overflow-x-auto">
-  <div class="min-w-[56rem] rounded-3xl bg-base-100 p-3">
-
-    <!-- Day headers -->
-    <div class="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] gap-2 pb-2">
-        <div></div>
-        {% for day in days %}
-        <div class="rounded-full text-center py-2 text-sm bg-base-200">
-            {{ day|date:"D" }} <span class="opacity-60">{{ day|date:"m/d" }}</span>
-        </div>
+<!-- Top header -->
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;">
+    <h1 class="text-4xl font-light" style="flex: 1 1 0%; min-width: 0;">{{ circle.circle_name }}</h1>
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;">
+        <a href="{% url 'propose_event' circle.id %}" class="btn btn-primary btn-sm">+ Propose Event</a>
+        {% for i in memberships %}
+            {% if i.user == request.user and i.role == 'owner' %}
+                <a href="{% url 'quick_approve' circle.id %}" class="btn btn-sm">Quick Add Event</a>
+                <a href="{% url 'edit_circle' circle.id %}" class="btn btn-sm">Edit Circle</a>
+                <a href="{% url 'delete_circle' circle.id %}" class="btn btn-sm btn-error">Delete Circle</a>
+            {% elif i.user == request.user %}
+                <a href="{% url 'leave_circle' circle.id %}" class="btn btn-sm btn-error">Leave Circle</a>
+            {% endif %}
         {% endfor %}
     </div>
+</div>
 
-    <!-- Hour labels + day columns -->
-    <div class="grid grid-cols-[4rem_repeat(7,minmax(0,1fr))] gap-2">
+<!-- Main 2-Column Desktop Grid -->
+<div style="display: grid; grid-template-columns: repeat(12, 1fr); gap: 1.5rem; margin-top: 1.5rem;">
 
-        <div>
-            {% for row in grid %}
-            <div class="h-16 border-t border-base-300 text-xs opacity-60 pt-2">{{ row.hour }}:00</div>
-            {% endfor %}
+    <!-- LEFT COLUMN (Spans 8 of 12 columns on wide screens) -->
+    <div style="grid-column: span 12 / span 12; min-width: 0; display: flex; flex-direction: column; gap: 1.5rem;" class="lg:!col-span-8">
+
+        <!-- Proposed events -->
+        <section>
+            <h2 class="text-2xl font-light" style="margin-bottom: 1rem;">Proposed Events</h2>
+
+            <div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+                {% for proposal in proposals %}
+                <div class="card bg-base-100">
+                    <div class="card-body" style="gap: 0.75rem;">
+
+                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;">
+                            <h3 class="card-title">{{ proposal.event_name }}</h3>
+                            {% if proposal.budget_label %}
+                            <span class="badge bg-accent border-0" style="flex-shrink: 0;">{{ proposal.budget_label }}</span>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-sm opacity-70">
+                            {{ proposal.start_time|date:"M d, H:i" }} – {{ proposal.end_time|date:"M d, H:i" }}
+                        </p>
+                        {% if proposal.proposed_by %}
+                        <p class="text-xs opacity-60">Proposed by {{ proposal.proposed_by.username }}</p>
+                        {% endif %}
+                        {% if proposal.event_description %}<p class="text-sm">{{ proposal.event_description }}</p>{% endif %}
+
+                        <!-- Vote progress -->
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;" class="text-xs">
+                                <span style="width: 2rem;">Yes</span>
+                                <progress class="progress progress-success" style="flex: 1 1 0%;" value="{{ proposal.yes_votes }}" max="{{ proposal.total_members }}"></progress>
+                                <span style="width: 1.5rem; text-align: right;">{{ proposal.yes_votes }}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;" class="text-xs">
+                                <span style="width: 2rem;">No</span>
+                                <progress class="progress progress-error" style="flex: 1 1 0%;" value="{{ proposal.no_votes }}" max="{{ proposal.total_members }}"></progress>
+                                <span style="width: 1.5rem; text-align: right;">{{ proposal.no_votes }}</span>
+                            </div>
+                            <p class="text-xs opacity-70">Needs a majority of {{ proposal.total_members }} members</p>
+                        </div>
+
+                        <!-- Quick vote -->
+                        <form method="POST" action="{% url 'vote_proposal' proposal.id %}" class="card-actions" style="margin-top: 0.25rem;">
+                            {% csrf_token %}
+                            <button type="submit" name="choice" value="yes"
+                                    class="btn btn-sm {% if user_votes|get_item:proposal.id == 'yes' %}btn-primary{% endif %}">Yes</button>
+                            <button type="submit" name="choice" value="no"
+                                    class="btn btn-sm {% if user_votes|get_item:proposal.id == 'no' %}btn-error{% endif %}">No</button>
+                        </form>
+
+                    </div>
+                </div>
+                {% empty %}
+                <div class="card bg-base-100">
+                    <div class="card-body items-center text-center">
+                        <p class="opacity-70">No events proposed yet.</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Best time to meet banner -->
+        {% if best_slot and best_slot.free > 0 %}
+        <div class="rounded-3xl bg-primary" style="padding: 1.25rem;">
+            <p class="text-sm opacity-70">Best time to meet this week</p>
+            <p class="text-xl font-medium">
+                {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
+            </p>
+            <p class="text-sm">{{ best_slot.free }} of {{ best_slot.total }} members free</p>
         </div>
+        {% endif %}
 
-        {% for day in days %}
-        {% with i=forloop.counter0 %}
-        <div class="relative">
+        <!-- Availability -->
+        <section>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                <h2 class="text-2xl font-light" style="flex: 1 1 0%;">Availability</h2>
+                <a href="{% url 'export_circle_calendar' circle.id %}" class="btn btn-sm">Export (.ics)</a>
+                <a href="?week={{ prev_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">←</a>
+                <span class="px-4 py-1 rounded-full bg-base-100 text-sm">
+                    {{ days.0|date:"M d" }} – {{ days.6|date:"M d, Y" }}
+                </span>
+                <a href="?week={{ next_week|date:'Y-m-d' }}" class="btn btn-sm btn-circle">→</a>
+            </div>
 
-            <!-- Clickable hour slots (blank when everyone is free) -->
-            {% for cell in grid|column:i %}
-            <a href="{% url 'time_block_detail' circle.id %}?start={{ cell.start|date:'Y-m-d\TH:i' }}&end={{ cell.end|date:'Y-m-d\TH:i' }}"
-               class="block h-16 border-t border-base-300 hover:bg-base-200 transition"></a>
-            {% endfor %}
+            <div style="overflow-x: auto;">
+              <div class="rounded-3xl bg-base-100" style="min-width: 56rem; padding: 0.75rem;">
 
-            <!-- Merged busy blocks -->
-            {% for b in grid|busy_blocks:i %}
-            <a href="{% url 'time_block_detail' circle.id %}?start={{ b.start|date:'Y-m-d\TH:i' }}&end={{ b.end|date:'Y-m-d\TH:i' }}"
-               class="absolute inset-x-0 z-10 overflow-hidden rounded-2xl px-3 py-2 text-xs hover:ring-2 hover:ring-neutral transition"
-               style="top: calc({{ b.hour }} * 4rem + 2px);
-                      height: calc({{ b.span }} * 4rem - 4px);
-                      background: {{ b.color }};
-                      color: {{ b.text }};">
-                <p class="font-medium">{{ b.free }}/{{ b.total }} free</p>
-                {% for l in b.labels %}<p class="font-medium opacity-80">{{ l }}</p>{% endfor %}
-                <div class="flex -space-x-2 mt-1">
-                    {% for uid in b.busy %}
-                    {% with u=members_info|get_item:uid %}
-                    {% if u.avatar %}
-                    <img src="{{ u.avatar }}" alt="{{ u.username }}" title="{{ u.username }}"
-                         class="w-5 h-5 rounded-full object-cover border border-base-100">
-                    {% else %}
-                    <span title="{{ u.username }}"
-                          class="w-5 h-5 rounded-full bg-base-100 text-base-content text-[10px] flex items-center justify-center border border-base-300">{{ u.username|slice:":1"|upper }}</span>
-                    {% endif %}
-                    {% endwith %}
+                <!-- Day headers -->
+                <div style="display: grid; grid-template-columns: 4rem repeat(7, minmax(0, 1fr)); gap: 0.5rem; padding-bottom: 0.5rem;">
+                    <div></div>
+                    {% for day in days %}
+                    <div class="rounded-full text-center py-2 text-sm bg-base-200">
+                        {{ day|date:"D" }} <span class="opacity-60">{{ day|date:"m/d" }}</span>
+                    </div>
                     {% endfor %}
                 </div>
-            </a>
-            {% endfor %}
 
-        </div>
-        {% endwith %}
-        {% endfor %}
+                <!-- Hour labels + day columns -->
+                <div style="display: grid; grid-template-columns: 4rem repeat(7, minmax(0, 1fr)); gap: 0.5rem;">
+
+                    <div>
+                        {% for row in grid %}
+                        <div class="h-16 border-t border-base-300 text-xs opacity-60" style="padding-top: 0.5rem;">{{ row.hour }}:00</div>
+                        {% endfor %}
+                    </div>
+
+                    {% for day in days %}
+                    {% with i=forloop.counter0 %}
+                    <div class="relative">
+
+                        <!-- Clickable hour slots -->
+                        {% for cell in grid|column:i %}
+                        <a href="{% url 'time_block_detail' circle.id %}?start={{ cell.start|date:'Y-m-d\TH:i' }}&end={{ cell.end|date:'Y-m-d\TH:i' }}"
+                           class="block h-16 border-t border-base-300 hover:bg-base-200 transition"></a>
+                        {% endfor %}
+
+                        <!-- Merged busy blocks -->
+                        {% for b in grid|busy_blocks:i %}
+                        <a href="{% url 'time_block_detail' circle.id %}?start={{ b.start|date:'Y-m-d\TH:i' }}&end={{ b.end|date:'Y-m-d\TH:i' }}"
+                           class="absolute inset-x-0 z-10 overflow-hidden rounded-2xl px-3 py-2 text-xs hover:ring-2 hover:ring-neutral transition"
+                           style="top: calc({{ b.hour }} * 4rem + 2px);
+                                  height: calc({{ b.span }} * 4rem - 4px);
+                                  background: {{ b.color }};
+                                  color: {{ b.text }};">
+                            <p class="font-medium">{{ b.free }}/{{ b.total }} free</p>
+                            {% for l in b.labels %}<p class="font-medium opacity-80">{{ l }}</p>{% endfor %}
+                            <div style="display: flex; margin-top: 0.25rem;">
+                                {% for uid in b.busy %}
+                                {% with u=members_info|get_item:uid %}
+                                {% if u.avatar %}
+                                <img src="{{ u.avatar }}" alt="{{ u.username }}" title="{{ u.username }}"
+                                     class="w-5 h-5 rounded-full object-cover border border-base-100" style="margin-left: -0.5rem;">
+                                {% else %}
+                                <span title="{{ u.username }}"
+                                      class="w-5 h-5 rounded-full bg-base-100 text-base-content text-[10px] flex items-center justify-center border border-base-300" style="margin-left: -0.5rem;">{{ u.username|slice:":1"|upper }}</span>
+                                {% endif %}
+                                {% endwith %}
+                                {% endfor %}
+                            </div>
+                        </a>
+                        {% endfor %}
+
+                    </div>
+                    {% endwith %}
+                    {% endfor %}
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Legend -->
+            <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem;" class="text-xs opacity-70">
+                <span>Everyone free</span>
+                <span class="w-6 h-3 rounded-full bg-base-100 border border-base-300"></span>
+                <span class="w-24 h-3 rounded-full" style="background: linear-gradient(to right, rgb(252,218,212), rgb(196,28,40));"></span>
+                <span>Everyone busy</span>
+            </div>
+        </section>
 
     </div>
-  </div>
-</div>
 
-<div class="flex items-center gap-3 text-xs opacity-70 mt-3">
-    <span>Everyone free</span>
-    <span class="w-6 h-3 rounded-full bg-base-100 border border-base-300"></span>
-    <span class="w-24 h-3 rounded-full" style="background: linear-gradient(to right, rgb(252,218,212), rgb(196,28,40));"></span>
-    <span>Everyone busy</span>
-</div>
+    <!-- RIGHT COLUMN (Spans 4 of 12 columns on wide screens) -->
+    <aside style="grid-column: span 12 / span 12; min-width: 0; display: flex; flex-direction: column; gap: 1.5rem;" class="lg:!col-span-4">
 
-<!-- Proposed events -->
-<div class="flex items-center gap-3 mt-10 mb-4">
-    <h2 class="text-2xl font-light flex-1">Proposed Events</h2>
-    <a href="{% url 'propose_event' circle.id %}" class="btn btn-neutral btn-sm">Propose a new event</a>
-</div>
-
-<div class="grid gap-4 md:grid-cols-2">
-    {% for proposal in proposals %}
-    <div class="card bg-base-100">
-        <div class="card-body gap-2">
-            <h3 class="card-title">{{ proposal.event_name }}</h3>
-            <p class="text-sm opacity-70">
-                {{ proposal.start_time|date:"M d, Y H:i" }} – {{ proposal.end_time|date:"M d, Y H:i" }}
-            </p>
-            {% if proposal.event_description %}<p class="text-sm">{{ proposal.event_description }}</p>{% endif %}
-
-            <progress class="progress progress-neutral w-full" value="{{ proposal.yes_votes }}" max="{{ proposal.total_members }}"></progress>
-            <p class="text-xs opacity-70">
-                {{ proposal.yes_votes }} yes / {{ proposal.no_votes }} no
-                (needs a majority of {{ proposal.total_members }} members)
-            </p>
-
-            {% if proposal.id in user_votes %}
-                <p class="text-sm">Your vote: <span class="badge badge-primary">{{ user_votes|get_item:proposal.id }}</span></p>
-            {% else %}
-                <form method="POST" action="{% url 'vote_proposal' proposal.id %}" class="card-actions mt-1">
-                    {% csrf_token %}
-                    <button type="submit" name="choice" value="yes" class="btn btn-primary btn-sm">Vote Yes</button>
-                    <button type="submit" name="choice" value="no" class="btn btn-sm">Vote No</button>
-                </form>
-            {% endif %}
+        <!-- Invite link -->
+        <div class="card bg-base-100">
+            <div class="card-body" style="gap: 0.75rem;">
+                <h2 class="card-title">Invite Link</h2>
+                <div style="display: flex; gap: 0.5rem; width: 100%;">
+                    <input type="text" id="invite-link" readonly
+                           value="{{ request.scheme }}://{{ request.get_host }}{% url 'join_circle' circle.invite_code %}"
+                           class="input text-xs" style="flex: 1 1 0%; min-width: 0; width: 100%;">
+                    <button type="button" class="btn btn-neutral" style="padding-left: 1rem; padding-right: 1rem; flex-shrink: 0;"
+                        onclick="navigator.clipboard.writeText(document.getElementById('invite-link').value); this.textContent='Copied!'">
+                        Copy
+                    </button>
+                </div>
+            </div>
         </div>
-    </div>
-    {% empty %}
-    <div class="card bg-base-100 md:col-span-2">
-        <div class="card-body items-center text-center">
-            <p class="opacity-70">No events proposed yet.</p>
+
+        <!-- Members -->
+        <div class="card bg-base-100">
+            <div class="card-body" style="gap: 0.5rem;">
+                <h2 class="card-title">Members</h2>
+                <div style="display: flex; flex-direction: column;">
+                    {% for i in memberships %}
+                    <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--fallback-b2, #e5e7eb);">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+                            {% if i.user.profile.avatar %}
+                            <img src="{{ i.user.profile.avatar.url }}" alt="{{ i.user.username }}"
+                                 class="w-8 h-8 rounded-full object-cover" style="flex-shrink: 0;">
+                            {% else %}
+                            <span class="w-8 h-8 rounded-full bg-base-200 text-sm flex items-center justify-center" style="flex-shrink: 0;">{{ i.user.username|slice:":1"|upper }}</span>
+                            {% endif %}
+                            <span class="text-sm truncate">{{ i.user.username }}</span>
+                        </div>
+                        {% if i.role == 'owner' %}
+                        <span class="badge badge-primary badge-sm" style="flex-shrink: 0;">owner</span>
+                        {% else %}
+                        <span class="badge badge-sm bg-base-200 border-0" style="flex-shrink: 0;">{{ i.role }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
-    </div>
-    {% endfor %}
+
+        <!-- At a glance -->
+        <div class="card bg-base-100">
+            <div class="card-body" style="gap: 0.25rem;">
+                <h2 class="card-title" style="margin-bottom: 0.25rem;">At a glance</h2>
+                <div style="display: flex; justify-between; justify-content: space-between; align-items: center; padding-top: 0.25rem; padding-bottom: 0.25rem;" class="text-sm">
+                    <span class="opacity-70">Members</span>
+                    <span class="font-medium">{{ memberships|length }}</span>
+                </div>
+                <div style="display: flex; justify-between; justify-content: space-between; align-items: center; padding-top: 0.25rem; padding-bottom: 0.25rem;" class="text-sm">
+                    <span class="opacity-70">Open proposals</span>
+                    <span class="font-medium">{{ proposals|length }}</span>
+                </div>
+                {% if best_slot and best_slot.free > 0 %}
+                <div style="display: flex; justify-between; justify-content: space-between; align-items: center; padding-top: 0.25rem; padding-bottom: 0.25rem;" class="text-sm">
+                    <span class="opacity-70">Best slot free</span>
+                    <span class="font-medium">{{ best_slot.free }}/{{ best_slot.total }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+    </aside>
+
 </div>
+
+<style>
+    /* Responsive Breakpoint Fallback for Screen Sizes >= 1024px */
+    @media (min-width: 1024px) {
+        div.lg\:\!col-span-8 { grid-column: span 8 / span 8 !important; }
+        aside.lg\:\!col-span-4 { grid-column: span 4 / span 4 !important; }
+    }
+</style>
 
 {% endblock %}
