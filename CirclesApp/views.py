@@ -25,6 +25,8 @@ from .polls import poll_is_ready, resolve_poll
 import io
 import zipfile
 import recurring_ical_events
+import hashlib
+from django.utils.text import slugify
 
 HOURS = range(0, 24)
 
@@ -395,6 +397,10 @@ def home_view(request):
         'user_accepted_polls': vote_totals['yes'],
         'user_rejected_polls': vote_totals['no'],
         'top_circles': top_circles,
+        'pending_proposals': pending_proposals,
+        'is_free': profile.is_free,
+        'free_until': profile.free_until,
+        'free_now_count': free_now_count,
     })
 
 
@@ -586,117 +592,60 @@ def time_block_detail_view(request, circle_id):
 
 
 
-@login_required
-def export_calendar_view(request):
+def _build_ical_event(uid_seed, name, start, end, description):
+    ev = ICalEvent()
+    ev.add('uid', f"{hashlib.sha1(uid_seed.encode()).hexdigest()}@circles.local")
+    ev.add('dtstamp', timezone.now())
+    ev.add('summary', name)
+    ev.add('dtstart', start)
+    ev.add('dtend', end)
+    if description:
+        ev.add('description', description)
+    return ev
+
+
+def _new_calendar(name):
     cal = ICalCalendar()
     cal.add('prodid', '-//Circles App//mxm.dk//')
     cal.add('version', '2.0')
+    cal.add('calscale', 'GREGORIAN')
+    cal.add('x-wr-calname', name)
+    return cal
 
+
+@login_required
+def export_calendar_view(request):
+    cal = _new_calendar('My Circles Calendar')
     for e in Event.objects.filter(user=request.user):
-        ical_event = ICalEvent()
-        ical_event.add('summary', e.event_name)
-        ical_event.add('dtstart', e.start_time)
-        ical_event.add('dtend', e.end_time)
-        ical_event.add('description', e.event_description)
-        cal.add_component(ical_event)
+        cal.add_component(_build_ical_event(
+            f"personal-{e.pk}", e.event_name, e.start_time, e.end_time, e.event_description,
+        ))
 
-    response = HttpResponse(cal.to_ical(), content_type='text/calendar')
+    response = HttpResponse(cal.to_ical(), content_type='text/calendar; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="my_calendar.ics"'
     return response
 
 
-MAX_IMPORT_EVENTS = 3000
-
-
-def _to_aware(value):
-    """datetime -> aware datetime; date -> midnight in the user's timezone."""
-    if isinstance(value, datetime):
-        return value if timezone.is_aware(value) else timezone.make_aware(value)
-    return timezone.make_aware(datetime.combine(value, time.min))
-
-
-def _event_bounds(comp):
-    start_raw = comp['dtstart'].dt
-    if 'dtend' in comp:
-        end_raw = comp['dtend'].dt
-    elif 'duration' in comp:
-        end_raw = start_raw + comp['duration'].dt
-    elif isinstance(start_raw, datetime):
-        end_raw = start_raw + timedelta(hours=1)
-    else:
-        end_raw = start_raw + timedelta(days=1)   # all-day, DTEND is exclusive
-    start, end = _to_aware(start_raw), _to_aware(end_raw)
-    if end <= start:
-        end = start + timedelta(hours=1)
-    return start, end
-
-
-def _load_calendars(uploaded):
-    data = uploaded.read()
-    if uploaded.name.lower().endswith('.zip'):   # Google's export is a zip of .ics files
-        with zipfile.ZipFile(io.BytesIO(data)) as zf:
-            return [ICalCalendar.from_ical(zf.read(n))
-                    for n in zf.namelist() if n.lower().endswith('.ics')]
-    return [ICalCalendar.from_ical(data)]
-
-
 @login_required
-def import_calendar_view(request):
-    if request.method == "POST":
-        form = ICSUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            try:
-                calendars = _load_calendars(form.cleaned_data['ics_file'])
-            except Exception:
-                messages.error(request, "That doesn't look like a valid .ics (or .zip) file.")
-                return redirect('import_calendar')
+def export_circle_calendar_view(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    if not Membership.objects.filter(user=request.user, circle=circle).exists():
+        raise Http404
 
-            existing = set(
-                Event.objects.filter(user=request.user)
-                .values_list('event_name', 'start_time', 'end_time')
-            )
-            new_events, capped = [], False
-            window_end = timezone.localdate() + timedelta(days=366)   # expand repeats up to 1 year out
+    cal = _new_calendar(circle.circle_name)
+    shared = Event.objects.filter(circle=circle, status='approved').values(
+        'event_name', 'start_time', 'end_time', 'event_description'
+    ).distinct()
+    for e in shared:
+        seed = f"circle-{circle.id}|{e['event_name']}|{e['start_time'].isoformat()}|{e['end_time'].isoformat()}"
+        cal.add_component(_build_ical_event(
+            seed, e['event_name'], e['start_time'], e['end_time'], e['event_description'],
+        ))
 
-            for cal in calendars:
-                starts = []
-                for c in cal.walk('VEVENT'):
-                    if 'dtstart' in c:
-                        d = c['dtstart'].dt
-                        starts.append(d.date() if isinstance(d, datetime) else d)
-                if not starts:
-                    continue
-                occurrences = recurring_ical_events.of(cal).between(min(starts), window_end)
-
-                for comp in occurrences:
-                    if 'dtstart' not in comp or str(comp.get('status', '')).upper() == 'CANCELLED':
-                        continue
-                    start, end = _event_bounds(comp)
-                    name = str(comp.get('summary', 'Imported Event'))[:32]
-                    key = (name, start, end)
-                    if key in existing:
-                        continue
-                    existing.add(key)
-                    new_events.append(Event(
-                        user=request.user, start_time=start, end_time=end,
-                        event_name=name, event_description=str(comp.get('description', '')),
-                    ))
-                    if len(new_events) >= MAX_IMPORT_EVENTS:
-                        capped = True
-                        break
-                if capped:
-                    break
-
-            Event.objects.bulk_create(new_events)
-            msg = f"Imported {len(new_events)} events."
-            if capped:
-                msg += f" Stopped at {MAX_IMPORT_EVENTS}; repeating events were expanded one year ahead."
-            messages.success(request, msg)
-            return redirect('calendar')
-    else:
-        form = ICSUploadForm()
-    return render(request, 'circles_app/import_calendar.html', {'form': form})
-
+    filename = slugify(circle.circle_name) or 'circle'
+    response = HttpResponse(cal.to_ical(), content_type='text/calendar; charset=utf-8')
+    response['Content-Disposition'] = f'attachment; filename="{filename}.ics"'
+    return response
 # CRUD FUNCTIONS FOR EVENTS, CIRCLES
 
 @login_required
@@ -979,3 +928,95 @@ def finalize_poll_view(request, proposal_id):
         else:
             messages.warning(request, "Nobody has opted in yet, so there's nothing to add.")
     return redirect('circle_detail', circle_id=proposal.circle.id)
+
+MAX_IMPORT_EVENTS = 3000
+
+
+def _to_aware(value):
+    """datetime -> aware datetime; date -> midnight in the user's timezone."""
+    if isinstance(value, datetime):
+        return value if timezone.is_aware(value) else timezone.make_aware(value)
+    return timezone.make_aware(datetime.combine(value, time.min))
+
+
+def _event_bounds(comp):
+    start_raw = comp['dtstart'].dt
+    if 'dtend' in comp:
+        end_raw = comp['dtend'].dt
+    elif 'duration' in comp:
+        end_raw = start_raw + comp['duration'].dt
+    elif isinstance(start_raw, datetime):
+        end_raw = start_raw + timedelta(hours=1)
+    else:
+        end_raw = start_raw + timedelta(days=1)   # all-day, DTEND is exclusive
+    start, end = _to_aware(start_raw), _to_aware(end_raw)
+    if end <= start:
+        end = start + timedelta(hours=1)
+    return start, end
+
+
+def _load_calendars(uploaded):
+    data = uploaded.read()
+    if uploaded.name.lower().endswith('.zip'):   # Google's export is a zip of .ics files
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            return [ICalCalendar.from_ical(zf.read(n))
+                    for n in zf.namelist() if n.lower().endswith('.ics')]
+    return [ICalCalendar.from_ical(data)]
+
+
+@login_required
+def import_calendar_view(request):
+    if request.method == "POST":
+        form = ICSUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                calendars = _load_calendars(form.cleaned_data['ics_file'])
+            except Exception:
+                messages.error(request, "That doesn't look like a valid .ics (or .zip) file.")
+                return redirect('import_calendar')
+
+            existing = set(
+                Event.objects.filter(user=request.user)
+                .values_list('event_name', 'start_time', 'end_time')
+            )
+            new_events, capped = [], False
+            window_end = timezone.localdate() + timedelta(days=366)   # expand repeats up to 1 year out
+
+            for cal in calendars:
+                starts = []
+                for c in cal.walk('VEVENT'):
+                    if 'dtstart' in c:
+                        d = c['dtstart'].dt
+                        starts.append(d.date() if isinstance(d, datetime) else d)
+                if not starts:
+                    continue
+                occurrences = recurring_ical_events.of(cal).between(min(starts), window_end)
+
+                for comp in occurrences:
+                    if 'dtstart' not in comp or str(comp.get('status', '')).upper() == 'CANCELLED':
+                        continue
+                    start, end = _event_bounds(comp)
+                    name = str(comp.get('summary', 'Imported Event'))[:32]
+                    key = (name, start, end)
+                    if key in existing:
+                        continue
+                    existing.add(key)
+                    new_events.append(Event(
+                        user=request.user, start_time=start, end_time=end,
+                        event_name=name, event_description=str(comp.get('description', '')),
+                    ))
+                    if len(new_events) >= MAX_IMPORT_EVENTS:
+                        capped = True
+                        break
+                if capped:
+                    break
+
+            Event.objects.bulk_create(new_events)
+            msg = f"Imported {len(new_events)} events."
+            if capped:
+                msg += f" Stopped at {MAX_IMPORT_EVENTS}; repeating events were expanded one year ahead."
+            messages.success(request, msg)
+            return redirect('calendar')
+    else:
+        form = ICSUploadForm()
+    return render(request, 'circles_app/import_calendar.html', {'form': form})
