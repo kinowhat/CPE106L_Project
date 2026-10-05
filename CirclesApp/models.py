@@ -89,3 +89,9 @@ class UserProfile(models.Model):
      user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
      timezone = models.CharField(max_length=64, choices=TIMEZONE_CHOICES, default='Asia/Manila')
      avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+     free_until = models.DateTimeField(null=True, blank=True)
+
+     @property
+     def is_free(self):
+         # `timezone` here is the module-level django.utils.timezone (methods don't see the class attribute)
+         return self.free_until is not None and self.free_until > timezone.now()

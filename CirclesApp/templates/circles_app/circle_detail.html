@@ -8,15 +8,13 @@
     <h1 class="text-4xl font-light" style="flex: 1 1 0%; min-width: 0;">{{ circle.circle_name }}</h1>
     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;">
         <a href="{% url 'propose_event' circle.id %}" class="btn btn-primary btn-sm">+ Propose Event</a>
-        {% for i in memberships %}
-            {% if i.user == request.user and i.role == 'owner' %}
-                <a href="{% url 'quick_approve' circle.id %}" class="btn btn-sm">Quick Add Event</a>
-                <a href="{% url 'edit_circle' circle.id %}" class="btn btn-sm">Edit Circle</a>
-                <a href="{% url 'delete_circle' circle.id %}" class="btn btn-sm btn-error">Delete Circle</a>
-            {% elif i.user == request.user %}
-                <a href="{% url 'leave_circle' circle.id %}" class="btn btn-sm btn-error">Leave Circle</a>
-            {% endif %}
-        {% endfor %}
+        {% if is_owner %}
+            <a href="{% url 'quick_approve' circle.id %}" class="btn btn-sm">Quick Add Event</a>
+            <a href="{% url 'edit_circle' circle.id %}" class="btn btn-sm">Edit Circle</a>
+            <a href="{% url 'delete_circle' circle.id %}" class="btn btn-sm btn-error">Delete Circle</a>
+        {% else %}
+            <a href="{% url 'leave_circle' circle.id %}" class="btn btn-sm btn-error">Leave Circle</a>
+        {% endif %}
     </div>
 </div>
 
@@ -221,6 +219,13 @@
                         Copy
                     </button>
                 </div>
+                {% if is_owner %}
+                <form method="POST" action="{% url 'regenerate_invite' circle.id %}"
+                      onsubmit="return confirm('Generate a new invite link? The current link will stop working.');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm w-full">Regenerate Link</button>
+                </form>
+                {% endif %}
             </div>
         </div>
 
@@ -230,7 +235,7 @@
                 <h2 class="card-title">Members</h2>
                 <div style="display: flex; flex-direction: column;">
                     {% for i in memberships %}
-                    <div style="display: flex; align-items: center; justify-content: space-between; padding-top: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--fallback-b2, #e5e7eb);">
+                    <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding-top: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--fallback-b2, #e5e7eb);">
                         <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
                             {% if i.user.profile.avatar %}
                             <img src="{{ i.user.profile.avatar.url }}" alt="{{ i.user.username }}"
@@ -239,11 +244,24 @@
                             <span class="w-8 h-8 rounded-full bg-base-200 text-sm flex items-center justify-center" style="flex-shrink: 0;">{{ i.user.username|slice:":1"|upper }}</span>
                             {% endif %}
                             <span class="text-sm truncate">{{ i.user.username }}</span>
+                            {% if i.role == 'owner' %}
+                            <span class="badge badge-primary badge-sm" style="flex-shrink: 0;">owner</span>
+                            {% endif %}
                         </div>
-                        {% if i.role == 'owner' %}
-                        <span class="badge badge-primary badge-sm" style="flex-shrink: 0;">owner</span>
-                        {% else %}
-                        <span class="badge badge-sm bg-base-200 border-0" style="flex-shrink: 0;">{{ i.role }}</span>
+
+                        {% if is_owner and i.user_id != request.user.id %}
+                        <div style="display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0;">
+                            <form method="POST" action="{% url 'transfer_ownership' circle.id i.user_id %}"
+                                  onsubmit="return confirm('Transfer ownership of this circle to {{ i.user.username|escapejs }}? You will become a regular member.');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-xs">Transfer Owner</button>
+                            </form>
+                            <form method="POST" action="{% url 'remove_member' circle.id i.user_id %}"
+                                  onsubmit="return confirm('Remove {{ i.user.username|escapejs }} from this circle?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-xs btn-error">Remove</button>
+                            </form>
+                        </div>
                         {% endif %}
                     </div>
                     {% endfor %}
@@ -251,34 +269,38 @@
             </div>
         </div>
 
-<!-- At a glance -->
-<div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-3">
-    <h3 class="text-xl font-bold">At a glance</h3>
-    <div class="flex flex-col gap-2 text-sm">
-        <div class="flex justify-between items-center">
-            <span class="opacity-70">Members</span>
-            <span class="font-medium">{{ memberships|length }}</span>
+        <!-- At a glance -->
+        <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-3">
+            <h3 class="text-xl font-bold">At a glance</h3>
+            <div class="flex flex-col gap-2 text-sm">
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Members</span>
+                    <span class="font-medium">{{ memberships|length }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Open proposals</span>
+                    <span class="font-medium">{{ proposals|length }}</span>
+                </div>
+                {% if best_slot and best_slot.free > 0 %}
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Best slot free</span>
+                    <span class="font-medium">{{ best_slot.free }}/{{ best_slot.total }}</span>
+                </div>
+                {% endif %}
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Events this month</span>
+                    <span class="font-medium">{{ events_this_month }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="opacity-70">Member engagement</span>
+                    <span class="font-medium">{{ active_member_pct }}%</span>
+                </div>
+            </div>
         </div>
-        <div class="flex justify-between items-center">
-            <span class="opacity-70">Open proposals</span>
-            <span class="font-medium">{{ proposals|length }}</span>
-        </div>
-        {% if best_slot and best_slot.free > 0 %}
-        <div class="flex justify-between items-center">
-            <span class="opacity-70">Best slot free</span>
-            <span class="font-medium">{{ best_slot.free }}/{{ best_slot.total }}</span>
-        </div>
-        {% endif %}
-        <div class="flex justify-between items-center">
-            <span class="opacity-70">Events this month</span>
-            <span class="font-medium">{{ events_this_month }}</span>
-        </div>
-        <div class="flex justify-between items-center">
-            <span class="opacity-70">Member engagement</span>
-            <span class="font-medium">{{ active_member_pct }}%</span>
-        </div>
-    </div>
+
+    </aside>
 </div>
+
 <style>
     /* Responsive Breakpoint Fallback for Screen Sizes >= 1024px */
     @media (min-width: 1024px) {

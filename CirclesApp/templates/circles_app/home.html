@@ -3,14 +3,6 @@
 {% block title %}Home{% endblock %}
 {% block content %}
 
-<h1 class="text-4xl font-light">Welcome, {{ request.user.username }}!</h1>
-<p class="opacity-70 mb-4">Check on your circles!</p>
-<div class="flex flex-wrap gap-2 mb-8">
-    <button type="button" class="btn btn-primary" onclick="quick_event_modal.showModal()">+ Quick Add Event</button>
-    <button type="button" class="btn btn-secondary" {% if not memberships %}disabled{% endif %}
-            onclick="poll_modal.showModal()">Create Poll</button>
-</div>
-
 <!-- Quick add event modal -->
 <dialog id="quick_event_modal" class="modal">
     <div class="modal-box styled-form">
@@ -27,7 +19,7 @@
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
 
-<!-- Create poll modal: pick a circle, then go to its propose-event page -->
+<!-- Create poll modal -->
 <dialog id="poll_modal" class="modal">
     <div class="modal-box styled-form">
         <h3 class="text-2xl font-light mb-2">Create a Poll</h3>
@@ -44,121 +36,219 @@
     </div>
     <form method="dialog" class="modal-backdrop"><button>close</button></form>
 </dialog>
-<div class="flex flex-col lg:flex-row gap-6">
 
-    <!-- Main column: circles features -->
-    <div class="flex-1 min-w-0">
+<div class="flex flex-col lg:flex-row items-start gap-6">
 
-        <!-- Your circles -->
-        <h2 class="text-xl font-medium mb-3">Your circles</h2>
+    <!-- MAIN LEFT COLUMN -->
+    <div class="flex-1 min-w-0 w-full flex flex-col gap-6">
 
-        {% if memberships %}
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 mb-10">
-            {% for i in memberships %}
-            <a href="{% url 'circle_detail' i.circle.id %}"
-               class="card {% cycle 'bg-primary' 'bg-secondary' 'bg-accent' %} text-base-content hover:-translate-y-1 transition">
-                <div class="card-body">
-                    <h3 class="card-title">{{ i.circle.circle_name }}</h3>
-                    <p class="text-sm opacity-70">Open circle →</p>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        {% else %}
-        <div class="card bg-base-100 mb-10">
-            <div class="card-body items-center text-center">
-                <p class="opacity-70">No Circles yet! Create one or join with an invite code.</p>
+        <!-- Welcome Header -->
+        <div>
+            <h1 class="text-4xl font-light">Welcome, {{ request.user.first_name|default:request.user.username }}!</h1>
+            <p class="text-sm opacity-70 mt-1">Check on your circles!</p>
+            <div class="flex gap-2 mt-4">
+                <button type="button" class="btn btn-warning btn-sm rounded-full" onclick="quick_event_modal.showModal()">+ Quick Add Event</button>
+                <button type="button" class="btn btn-secondary btn-sm rounded-full"
+                        {% if not memberships %}disabled{% endif %}
+                        onclick="poll_modal.showModal()">Create Poll</button>
             </div>
         </div>
-        {% endif %}
 
-        <!-- Create and join -->
-        <div class="grid gap-4 md:grid-cols-2">
-
-            <div class="card bg-base-100">
-                <div class="card-body">
-                    <h2 class="card-title">Create a Circle</h2>
-                    <p class="text-sm opacity-70">Start a new group and invite your friends.</p>
-                    <div class="card-actions mt-2">
-                        <a href="{% url 'create_circle' %}" class="btn btn-neutral">Create Circle</a>
-                    </div>
+        <!-- Sync-to-Hangout Card -->
+        <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-lg">Sync-to-Hangout</h3>
+                    {% if is_free %}<span class="badge badge-success badge-sm">Free</span>{% endif %}
                 </div>
+                {% if is_free %}
+                    <p class="text-sm opacity-70 mt-1">You're free until {{ free_until|date:"H:i" }}. Your circle members have been notified.</p>
+                {% else %}
+                    <p class="text-sm opacity-70 mt-1">Spontaneous free time? Toggle status to notify your circle members.</p>
+                {% endif %}
+                <p class="text-xs opacity-60 mt-2">{{ free_now_count }} circle member{{ free_now_count|pluralize }} free right now</p>
             </div>
-
-            <div class="card bg-base-100">
-                <form method="POST" action="{% url 'find_circle' %}" class="card-body styled-form">
-                    {% csrf_token %}
-                    <h2 class="card-title">Join a Circle</h2>
-                    {{ join_form.as_p }}
-                    <div class="card-actions mt-2">
-                        <button type="submit" class="btn btn-primary">Join Circle</button>
-                    </div>
-                </form>
-            </div>
-
+            <form method="POST" action="{% url 'toggle_free_status' %}" class="flex items-center gap-2 shrink-0">
+                {% csrf_token %}
+                {% if not is_free %}
+                    <select name="hours" class="select select-sm rounded-full w-28">
+                        <option value="1">1 hour</option>
+                        <option value="2" selected>2 hours</option>
+                        <option value="3">3 hours</option>
+                        <option value="4">4 hours</option>
+                    </select>
+                    <button type="submit" class="btn btn-warning btn-sm rounded-full px-5">Free Now</button>
+                {% else %}
+                    <button type="submit" class="btn btn-neutral btn-sm rounded-full px-5">Set as Busy</button>
+                {% endif %}
+            </form>
         </div>
-    </div>
 
-    <!-- Sidebar -->
-    <aside class="w-full lg:w-72 shrink-0">
-        <div class="flex flex-col gap-4 lg:sticky lg:top-4">
-
-            <!-- Your Stats -->
-            <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
-                <h3 class="text-xl font-bold">Your Stats</h3>
-
-                <!-- Poll Participation Stats -->
-                <div class="flex items-center justify-between bg-base-200/50 p-3 rounded-2xl text-sm">
-                    <div>
-                        <p class="text-xs opacity-60 font-semibold uppercase">Poll Votes</p>
-                        <p class="font-bold text-base mt-0.5">
-                            <span class="text-success">{{ user_accepted_polls }} Yes</span> /
-                            <span class="text-error">{{ user_rejected_polls }} No</span>
-                        </p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs opacity-60 font-semibold uppercase">Total</p>
-                        <p class="font-bold text-base mt-0.5">{{ user_accepted_polls|add:user_rejected_polls }}</p>
-                    </div>
-                </div>
-
-                <!-- Most Active Circles -->
-                <div>
-                    <p class="text-xs opacity-60 font-semibold uppercase mb-2">Top Circles</p>
-                    {% if top_circles %}
-                        <div class="flex flex-col gap-2">
-                            {% for circle in top_circles %}
-                                <a href="{% url 'circle_detail' circle.id %}" class="flex items-center justify-between p-2 rounded-xl hover:bg-base-200 transition text-sm">
-                                    <span class="font-medium truncate">{{ circle.circle_name }}</span>
-                                    <span class="badge badge-neutral badge-sm shrink-0">{{ circle.event_count }} events</span>
-                                </a>
-                            {% endfor %}
-                        </div>
-                    {% else %}
-                        <p class="text-xs opacity-60">No circle activity yet.</p>
-                    {% endif %}
-                </div>
+        <!-- Your Circles -->
+        <div>
+            <h2 class="text-xl font-medium mb-3">Your circles</h2>
+            {% if memberships %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {% for membership in memberships %}
+                    <a href="{% url 'circle_detail' membership.circle.id %}"
+                       class="{% cycle 'bg-primary' 'bg-secondary' 'bg-accent' %} text-base-content rounded-3xl p-6 shadow-sm hover:-translate-y-1 transition">
+                        <h3 class="font-bold text-lg">{{ membership.circle.circle_name }}</h3>
+                        <p class="text-xs mt-2 opacity-80">Open circle &rarr;</p>
+                    </a>
+                {% endfor %}
             </div>
-
-            <!-- What's coming up -->
-            {% if upcoming_events %}
-            <div class="card bg-base-100">
-                <div class="card-body">
-                    <h2 class="text-lg font-medium mb-1">What's coming up</h2>
-                    <div class="flex flex-col gap-2">
-                        {% for e in upcoming_events %}
-                        <div class="border-b border-base-200 last:border-0 pb-2 last:pb-0">
-                            <p class="font-medium text-sm">{{ e.event_name }}</p>
-                            <p class="text-xs opacity-70">{{ e.start_time|date:"D, M d — H:i" }}{% if e.circle %} · {{ e.circle.circle_name }}{% endif %}</p>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
+            {% else %}
+            <div class="bg-base-100 rounded-2xl p-5 text-center text-sm opacity-70 shadow-sm">
+                No Circles yet! Create one or join with an invite code.
             </div>
             {% endif %}
-
         </div>
-    </aside>
+
+        <!-- Needs Your Vote -->
+        <div>
+            <div class="flex items-center justify-between mb-3">
+                <h2 class="text-xl font-medium">Needs your vote</h2>
+                {% if pending_proposals %}<span class="badge badge-primary badge-sm">{{ pending_proposals|length }}</span>{% endif %}
+            </div>
+            {% if pending_proposals %}
+                <div class="flex flex-col gap-3">
+                    {% for proposal in pending_proposals %}
+                        <div class="bg-base-100 rounded-2xl p-4 shadow-sm flex items-center justify-between gap-4">
+                            <div class="min-w-0">
+                                <span class="badge badge-neutral badge-sm mb-1">{{ proposal.circle.circle_name }}</span>
+                                <h4 class="font-bold text-base truncate">{{ proposal.event_name }}</h4>
+                                <p class="text-xs opacity-70">{{ proposal.start_time|date:"D, M d — H:i" }} – {{ proposal.end_time|date:"H:i" }}</p>
+                            </div>
+                            <div class="flex items-center gap-2 shrink-0">
+                                <form method="POST" action="{% url 'vote_proposal' proposal.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="choice" value="yes">
+                                    <input type="hidden" name="next" value="{% url 'home' %}">
+                                    <button type="submit" class="btn btn-sm btn-success">Yes</button>
+                                </form>
+                                <form method="POST" action="{% url 'vote_proposal' proposal.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="choice" value="no">
+                                    <input type="hidden" name="next" value="{% url 'home' %}">
+                                    <button type="submit" class="btn btn-sm btn-error">No</button>
+                                </form>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="bg-base-100 rounded-2xl p-5 text-center text-sm opacity-70 shadow-sm">
+                    You're all caught up! No pending votes.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Create & Join Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-lg">Create a Circle</h3>
+                    <p class="text-xs opacity-70 mt-1">Start a new group and invite your friends.</p>
+                </div>
+                <a href="{% url 'create_circle' %}" class="btn btn-neutral btn-sm rounded-full mt-6 w-fit">Create Circle</a>
+            </div>
+
+            <div class="bg-base-100 rounded-3xl p-6 shadow-sm">
+                <form method="POST" action="{% url 'find_circle' %}" class="styled-form">
+                    {% csrf_token %}
+                    <h3 class="font-bold text-lg">Join a Circle</h3>
+                    <label for="id_invite_code" class="text-xs opacity-70 mt-1">Invite Code</label>
+                    <input type="text" name="invite_code" id="id_invite_code" maxlength="12" placeholder="Enter code..." required>
+                    <button type="submit" class="btn btn-warning btn-sm rounded-full mt-2">Join Circle</button>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- RIGHT SIDEBAR COLUMN -->
+    <div class="w-full lg:w-80 shrink-0 flex flex-col gap-6">
+
+        <!-- Notifications Card -->
+        <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-xl font-bold">Notifications</h3>
+                {% if nav_notification_count > 0 %}
+                    <span class="badge badge-primary badge-sm">{{ nav_notification_count }}</span>
+                {% endif %}
+            </div>
+            <div class="flex flex-col gap-2 text-sm">
+                {% if nav_pending_proposals %}
+                    <p class="font-semibold text-xs opacity-60 uppercase mt-1">Needs your vote</p>
+                    {% for p in nav_pending_proposals %}
+                        <a href="{% url 'circle_detail' p.circle.id %}" class="block p-2 rounded-xl hover:bg-base-200 transition">
+                            <p class="font-medium text-sm">{{ p.event_name }}</p>
+                            <p class="text-xs opacity-60">{{ p.circle.circle_name }}</p>
+                        </a>
+                    {% endfor %}
+                {% endif %}
+                {% if nav_recent_approved %}
+                    <p class="font-semibold text-xs opacity-60 uppercase mt-1">Recently added</p>
+                    {% for e in nav_recent_approved %}
+                        <a href="{% url 'circle_detail' e.circle.id %}" class="block p-2 rounded-xl hover:bg-base-200 transition">
+                            <p class="font-medium text-sm">{{ e.event_name }}</p>
+                            <p class="text-xs opacity-60">{{ e.circle.circle_name }}</p>
+                        </a>
+                    {% endfor %}
+                {% endif %}
+                {% if not nav_pending_proposals and not nav_recent_approved %}
+                    <p class="text-xs opacity-60 py-2">Nothing new right now.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Your Stats Card -->
+        <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
+            <h3 class="text-xl font-bold">Your Stats</h3>
+            <div class="bg-base-200/50 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold opacity-60 uppercase">Poll Votes</p>
+                    <p class="text-sm font-medium mt-1"><span class="text-success">{{ user_accepted_polls }} Yes</span> / <span class="text-error">{{ user_rejected_polls }} No</span></p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs font-semibold opacity-60 uppercase">Total</p>
+                    <p class="text-xl font-bold mt-1">{{ user_accepted_polls|add:user_rejected_polls }}</p>
+                </div>
+            </div>
+            <div>
+                <p class="text-xs font-semibold opacity-60 uppercase mb-2">Top Circles</p>
+                {% for circle in top_circles %}
+                    <a href="{% url 'circle_detail' circle.id %}" class="flex items-center justify-between text-sm py-1 hover:opacity-80">
+                        <span class="font-medium truncate">{{ circle.circle_name }}</span>
+                        <span class="badge badge-neutral badge-sm shrink-0">{{ circle.event_count }} events</span>
+                    </a>
+                {% empty %}
+                    <p class="text-xs opacity-60">No circle activity yet.</p>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- What's coming up Card -->
+        <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-3">
+            <h3 class="text-xl font-bold">What's coming up</h3>
+            {% if upcoming_events %}
+                <div class="flex flex-col">
+                    {% for event in upcoming_events %}
+                        <div class="py-2 border-b border-base-200 last:border-0">
+                            <p class="font-bold text-sm">{{ event.event_name }}</p>
+                            <p class="text-xs opacity-60">{{ event.start_time|date:"D, M d — H:i" }}{% if event.circle %} · {{ event.circle.circle_name }}{% endif %}</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <p class="text-xs opacity-60 py-2">No upcoming events scheduled.</p>
+            {% endif %}
+        </div>
+
+    </div>
+
+</div>
+
 <script>
 document.getElementById('poll-go').addEventListener('click', function () {
     var id = document.getElementById('poll-circle-select').value;

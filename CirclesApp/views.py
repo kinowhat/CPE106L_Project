@@ -6,7 +6,7 @@ from . forms import (
     RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm,
     ProfileForm, EventForm, ICSUploadForm, AccountForm, DeleteAccountForm,
 )
-from . models import Circle, Membership, Event, ProposalVote, UserProfile
+from . models import Circle, Membership, Event, ProposalVote, UserProfile, create_code
 from django.shortcuts import get_object_or_404
 from django.http import Http404, HttpResponse, JsonResponse
 from django.contrib import messages
@@ -17,6 +17,8 @@ from django.core.mail import send_mail
 from icalendar import Calendar as ICalCalendar, Event as ICalEvent
 from .conflicts import annotate_conflicts, find_conflicts
 from django.db.models import Count, F, Q
+from django.db import transaction
+from django.views.decorators.http import require_POST
 
 HOURS = range(0, 24)
 
@@ -165,8 +167,12 @@ def calendar_view(request):
 def circle_detail_view(request, circle_id):
     circle = get_object_or_404(Circle, id=circle_id)
     is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
+
+    
     if not is_member:
         raise Http404
+
+    is_owner = Membership.objects.filter(user=request.user, circle=circle, role='owner').exists()
 
     memberships = circle.memberships.all()
 
@@ -277,6 +283,7 @@ def circle_detail_view(request, circle_id):
         'members_info': members_info,
         'events_this_month': events_this_month,
         'active_member_pct': active_member_pct,
+        'is_owner': is_owner,
     })
 
 
@@ -352,6 +359,23 @@ def home_view(request):
         .filter(activity__gt=0)
         .order_by('-activity', 'circle_name')[:3]
     )
+    circle_ids = list(user_memberships.values_list('circle_id', flat=True))
+    voted_ids = ProposalVote.objects.filter(user=request.user).values_list('event_id', flat=True)
+    pending_proposals = (
+        Event.objects
+        .filter(circle_id__in=circle_ids, status='pending')
+        .exclude(id__in=voted_ids)
+        .select_related('circle')
+        .order_by('start_time')
+    )
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    free_now_count = (
+        UserProfile.objects
+        .filter(user__membership__circle_id__in=circle_ids, free_until__gt=timezone.now())
+        .exclude(user=request.user)
+        .distinct()
+        .count()
+    )
 
     return render(request, 'circles_app/home.html', {
         'memberships': user_memberships, 'join_form': join_form,
@@ -369,6 +393,8 @@ def propose_event_view(request, circle_id):
     is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
     if not is_member:
         raise Http404
+    is_owner = Membership.objects.filter(user=request.user, circle=circle, role='owner').exists()
+    memberships = circle.memberships.select_related('user', 'user__profile')
 
     if request.method == "POST":
         form = EventProposalForm(request.POST)
@@ -409,6 +435,13 @@ def propose_event_view(request, circle_id):
 
     return render(request, 'circles_app/propose_event.html', {'form': form, 'circle': circle})
 
+def _redirect_after_vote(request, proposal):
+    next_url = request.POST.get('next')
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+    ):
+        return redirect(next_url)
+    return redirect('circle_detail', circle_id=proposal.circle.id)
 
 @login_required
 def vote_proposal_view(request, proposal_id):
@@ -421,7 +454,7 @@ def vote_proposal_view(request, proposal_id):
         choice = request.POST.get('choice')
         if choice not in ('yes', 'no'):
             messages.error(request, "Invalid vote.")
-            return redirect('circle_detail', circle_id=proposal.circle.id)
+            return _redirect_after_vote(request, proposal)
 
         ProposalVote.objects.update_or_create(
             event=proposal, user=request.user, defaults={'choice': choice}
@@ -459,8 +492,7 @@ def vote_proposal_view(request, proposal_id):
         else:
             messages.success(request, "Vote recorded.")
 
-    return redirect('circle_detail', circle_id=proposal.circle.id)
-
+    return _redirect_after_vote(request, proposal)
 
 @login_required
 def profile_settings_view(request):
@@ -752,3 +784,115 @@ def check_conflicts_view(request):
         }
         for e in find_conflicts(request.user, start, end)
     ]})
+
+@login_required
+def toggle_free_status_view(request):
+    if request.method != "POST":
+        return redirect('home')
+
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if profile.is_free:
+        profile.free_until = None
+        profile.save(update_fields=['free_until'])
+        messages.success(request, "You're set as busy.")
+        return redirect('home')
+
+    try:
+        hours = int(request.POST.get('hours', 2))
+    except (TypeError, ValueError):
+        hours = 2
+    hours = max(1, min(hours, 4))  # only 1-4 hours are offered, so clamp anything else
+
+    profile.free_until = timezone.now() + timedelta(hours=hours)
+    profile.save(update_fields=['free_until'])
+
+    circle_ids = Membership.objects.filter(user=request.user).values_list('circle_id', flat=True)
+    emails = list(
+        User.objects.filter(membership__circle_id__in=circle_ids)
+        .exclude(id=request.user.id).exclude(email='')
+        .distinct().values_list('email', flat=True)
+    )
+    label = f"{hours} hour{'s' if hours != 1 else ''}"
+    if emails:
+        send_mail(
+            f"{request.user.username} is free right now!",
+            f"{request.user.username} just marked themselves as free for the next {label}. Hang out?",
+            None, emails, fail_silently=True,
+        )
+    messages.success(request, f"You're marked as free for the next {label}.")
+    return redirect('home')
+
+# CIRCLE OWNER MANAGEMENT
+
+def _require_owner(user, circle):
+    """Only the circle owner may manage members and the invite code."""
+    if not Membership.objects.filter(user=user, circle=circle, role='owner').exists():
+        raise Http404
+
+
+@login_required
+@require_POST
+def transfer_ownership(request, circle_id, member_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    _require_owner(request.user, circle)
+
+    if member_id == request.user.id:
+        messages.error(request, "You already own this circle.")
+        return redirect('circle_detail', circle_id=circle.id)
+
+    target = get_object_or_404(
+        Membership.objects.select_related('user'), circle=circle, user_id=member_id,
+    )
+
+    with transaction.atomic():
+        # Demote every current owner first so the circle never ends up with two.
+        Membership.objects.filter(circle=circle, role='owner').update(role='member')
+        target.role = 'owner'
+        target.save(update_fields=['role'])
+
+    messages.success(request, f"{target.user.username} is now the owner of {circle.circle_name}.")
+    return redirect('circle_detail', circle_id=circle.id)
+
+
+@login_required
+@require_POST
+def remove_member(request, circle_id, member_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    _require_owner(request.user, circle)
+
+    if member_id == request.user.id:
+        messages.error(request, "Owners can't remove themselves. Transfer ownership first, then leave.")
+        return redirect('circle_detail', circle_id=circle.id)
+
+    target = get_object_or_404(
+        Membership.objects.select_related('user'), circle=circle, user_id=member_id,
+    )
+    username = target.user.username
+
+    with transaction.atomic():
+        # Drop their votes on open proposals so they no longer count toward the majority.
+        ProposalVote.objects.filter(
+            event__circle=circle, event__status='pending', user_id=member_id,
+        ).delete()
+        target.delete()
+
+    messages.success(request, f"{username} was removed from {circle.circle_name}.")
+    return redirect('circle_detail', circle_id=circle.id)
+
+
+@login_required
+@require_POST
+def regenerate_invite_code(request, circle_id):
+    circle = get_object_or_404(Circle, id=circle_id)
+    _require_owner(request.user, circle)
+
+    code = create_code()
+    while Circle.objects.filter(invite_code=code).exists():
+        code = create_code()
+
+    circle.invite_code = code
+    circle.save(update_fields=['invite_code'])
+
+    messages.success(request, "New invite link generated. The old link no longer works.")
+    return redirect('circle_detail', circle_id=circle.id)

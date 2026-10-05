@@ -46,14 +46,7 @@
 
                 <!-- Notifications -->
                 <div class="dropdown dropdown-right w-full">
-                    <div tabindex="0" role="button" class="flex w-full items-center justify-between hover:opacity-80 transition cursor-pointer">
-                        <span>Notifications</span>
-                        <span class="flex items-center gap-2">
-                            {% if nav_notification_count > 0 %}
-                                <span class="badge badge-primary badge-sm">{{ nav_notification_count }}</span>
-                            {% endif %}
-                        </span>
-                    </div>
+
                     <div tabindex="0" class="dropdown-content menu bg-base-100 text-base-content rounded-box shadow w-80 p-3 z-50 ml-4">
                         {% if nav_pending_proposals %}
                             <p class="font-semibold text-sm px-2">Needs your vote</p>

@@ -1,5 +1,5 @@
 from django.urls import path
-from. import views
+from . import views
 
 urlpatterns = [
     path('', views.home_view, name="home"),
@@ -25,5 +25,11 @@ urlpatterns = [
     path('circles/<int:circle_id>/quick_approve/', views.quick_approve_view, name='quick_approve'),
     path('circles/<int:circle_id>/export/', views.export_circle_calendar_view, name='export_circle_calendar'),
     path('account_settings', views.account_settings_view, name='account_settings'),
-        path('conflicts/check/', views.check_conflicts_view, name='check_conflicts'),
+    path('conflicts/check/', views.check_conflicts_view, name='check_conflicts'),
+    path('free/toggle/', views.toggle_free_status_view, name='toggle_free_status'),
+
+    # Circle owner management
+    path('circles/<int:circle_id>/members/<int:member_id>/transfer/', views.transfer_ownership, name='transfer_ownership'),
+    path('circles/<int:circle_id>/members/<int:member_id>/remove/', views.remove_member, name='remove_member'),
+    path('circles/<int:circle_id>/invite/regenerate/', views.regenerate_invite_code, name='regenerate_invite'),
 ]
