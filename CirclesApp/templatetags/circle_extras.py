@@ -86,8 +86,9 @@ def busy_blocks(grid, i):
         cell = _get(row, "cells")[i]
         free, total = _get(cell, "free"), _get(cell, "total")
         labels = list(_get(cell, "labels") or [])
+        busy_ids = tuple(_get(cell, "busy") or [])
         busy = bool(total) and free < total
-        sig = (free, tuple(labels))
+        sig = (free, tuple(labels), busy_ids)
 
         if busy and current and current["sig"] == sig and current["next_hour"] == hour:
             current["span"] += 1
@@ -102,6 +103,7 @@ def busy_blocks(grid, i):
                 "next_hour": hour + 1,
                 "free": free,
                 "total": total,
+                "busy": busy_ids,
                 "labels": labels,
                 "start": _get(cell, "start"),
                 "end": _get(cell, "end"),

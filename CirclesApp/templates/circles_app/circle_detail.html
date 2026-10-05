@@ -101,6 +101,19 @@
                       color: {{ b.text }};">
                 <p class="font-medium">{{ b.free }}/{{ b.total }} free</p>
                 {% for l in b.labels %}<p class="font-medium opacity-80">{{ l }}</p>{% endfor %}
+                <div class="flex -space-x-2 mt-1">
+                    {% for uid in b.busy %}
+                    {% with u=members_info|get_item:uid %}
+                    {% if u.avatar %}
+                    <img src="{{ u.avatar }}" alt="{{ u.username }}" title="{{ u.username }}"
+                         class="w-5 h-5 rounded-full object-cover border border-base-100">
+                    {% else %}
+                    <span title="{{ u.username }}"
+                          class="w-5 h-5 rounded-full bg-base-100 text-base-content text-[10px] flex items-center justify-center border border-base-300">{{ u.username|slice:":1"|upper }}</span>
+                    {% endif %}
+                    {% endwith %}
+                    {% endfor %}
+                </div>
             </a>
             {% endfor %}
 

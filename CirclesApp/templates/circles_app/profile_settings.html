@@ -1,10 +1,11 @@
 {% extends 'base.html' %}
+{% load circle_extras %}
 {% block title %}Timezone Settings{% endblock %}
 {% block content %}
 <div class="card bg-base-100 w-full max-w-md mx-auto mt-10">
-    <form method="POST" class="card-body styled-form">
+    <form method="POST" enctype="multipart/form-data" class="card-body styled-form">
         {% csrf_token %}
-        <h1 class="text-3xl font-light mb-2">Your Timezone</h1>
+        <h1 class="text-3xl font-light mb-2">Your Profile</h1>
         {{ form.as_p }}
         <button type="submit" class="btn btn-primary w-full mt-2">Save</button>
     </form>

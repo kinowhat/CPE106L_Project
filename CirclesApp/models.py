@@ -86,5 +86,6 @@ class ProposalVote(models.Model):
 TIMEZONE_CHOICES = [(tz, tz) for tz in sorted(zoneinfo.available_timezones()) if '/' in tz]
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-    timezone = models.CharField(max_length=64, choices=TIMEZONE_CHOICES, default='Asia/Manila')
+     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+     timezone = models.CharField(max_length=64, choices=TIMEZONE_CHOICES, default='Asia/Manila')
+     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)

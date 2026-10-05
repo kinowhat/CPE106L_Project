@@ -1,10 +1,49 @@
 {% extends 'base.html' %}
+{% load circle_extras %}
 {% block title %}Home{% endblock %}
 {% block content %}
 
 <h1 class="text-4xl font-light">Welcome, {{ request.user.username }}!</h1>
-<p class="opacity-70 mb-8">Check on your circles!</p>
+<p class="opacity-70 mb-4">Check on your circles!</p>
+<div class="flex flex-wrap gap-2 mb-8">
+    <button type="button" class="btn btn-primary" onclick="quick_event_modal.showModal()">+ Quick Add Event</button>
+    <button type="button" class="btn btn-secondary" {% if not memberships %}disabled{% endif %}
+            onclick="poll_modal.showModal()">Create Poll</button>
+</div>
 
+<!-- Quick add event modal -->
+<dialog id="quick_event_modal" class="modal">
+    <div class="modal-box styled-form">
+        <form method="POST" action="{% url 'calendar' %}">
+            {% csrf_token %}
+            <h3 class="text-2xl font-light mb-2">Quick Add Event</h3>
+            {{ quick_event_form.as_p }}
+            <div class="modal-action">
+                <button type="button" class="btn" onclick="quick_event_modal.close()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add to my calendar</button>
+            </div>
+        </form>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Create poll modal: pick a circle, then go to its propose-event page -->
+<dialog id="poll_modal" class="modal">
+    <div class="modal-box styled-form">
+        <h3 class="text-2xl font-light mb-2">Create a Poll</h3>
+        <p class="text-sm opacity-70 mb-3">Choose a circle to propose an event for members to vote on.</p>
+        <select id="poll-circle-select">
+            {% for i in memberships %}
+            <option value="{{ i.circle.id }}">{{ i.circle.circle_name }}</option>
+            {% endfor %}
+        </select>
+        <div class="modal-action">
+            <button type="button" class="btn" onclick="poll_modal.close()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="poll-go">Continue</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
 <div class="flex flex-col lg:flex-row gap-6">
 
     <!-- Main column: circles features -->
@@ -80,4 +119,10 @@
     {% endif %}
 
 </div>
+<script>
+document.getElementById('poll-go').addEventListener('click', function () {
+    var id = document.getElementById('poll-circle-select').value;
+    window.location.href = "{% url 'propose_event' 0 %}".replace('/0/', '/' + id + '/');
+});
+</script>
 {% endblock %}

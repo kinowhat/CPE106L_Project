@@ -174,6 +174,14 @@ def circle_detail_view(request, circle_id):
     member_ids = Membership.objects.filter(circle=circle).values_list('user_id', flat=True)
     total_members = member_ids.count()
 
+    members_info = {}
+    for u in User.objects.filter(id__in=member_ids).select_related('profile'):
+        prof = getattr(u, 'profile', None)
+        members_info[u.id] = {
+            'username': u.username,
+            'avatar': prof.avatar.url if prof and prof.avatar else '',
+        }
+
     week_start = timezone.make_aware(datetime.combine(days[0], time.min))
     week_end = timezone.make_aware(datetime.combine(days[-1], time.max))
 
@@ -201,6 +209,7 @@ def circle_detail_view(request, circle_id):
             cells.append({
                 'free': free, 'total': total_members, 'ratio': ratio,
                 'labels': labels, 'start': cell_start, 'end': cell_end,
+                'busy': sorted(busy_users),
             })
         grid.append({'hour': hour, 'cells': cells})
 
@@ -234,6 +243,7 @@ def circle_detail_view(request, circle_id):
         'proposals': proposals,
         'user_votes': user_votes,
         'best_slot': best_slot,
+        'members_info': members_info,
     })
 
 
@@ -283,6 +293,7 @@ def home_view(request):
     return render(request, 'circles_app/home.html', {
         'memberships': user_memberships, 'join_form': join_form,
         'upcoming_events': upcoming_events,
+        'quick_event_form': CalendarForm(),
     })
 
 
@@ -372,10 +383,10 @@ def vote_proposal_view(request, proposal_id):
 def profile_settings_view(request):
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
     if request.method == "POST":
-        form = ProfileForm(request.POST, instance=profile)
+        form = ProfileForm(request.POST, request.FILES, instance=profile)
         if form.is_valid():
             form.save()
-            messages.success(request, "Timezone updated.")
+            messages.success(request, "Profile updated.")
             return redirect('home')
     else:
         form = ProfileForm(instance=profile)

@@ -23,7 +23,7 @@ class RegisterForm(forms.ModelForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        fields = ['timezone']
+        fields = ['timezone', 'avatar']
 
 # For editing account info
 class AccountForm(forms.ModelForm):
