@@ -8,13 +8,15 @@ from . forms import (
 )
 from . models import Circle, Membership, Event, ProposalVote, UserProfile
 from django.shortcuts import get_object_or_404
-from django.http import Http404, HttpResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.contrib import messages
 from datetime import timedelta, datetime, time
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.core.mail import send_mail
 from icalendar import Calendar as ICalCalendar, Event as ICalEvent
+from .conflicts import annotate_conflicts, find_conflicts
+from django.db.models import Count, F, Q
 
 HOURS = range(0, 24)
 
@@ -216,22 +218,51 @@ def circle_detail_view(request, circle_id):
     SLEEP_HOURS = set(range(22, 24)) | set(range(0, 6))  # 10PM–6AM
     SLEEP_PENALTY = 2  # ranking-only: treat a sleep-hour slot as if this many fewer people were free
 
+    now = timezone.now()  # aware, so it compares correctly with the aware cell datetimes
+
     best_slot = None
     best_score = None
     if total_members > 1:
         for row in grid:
             penalty = SLEEP_PENALTY if row['hour'] in SLEEP_HOURS else 0
             for cell in row['cells']:
+                if cell['start'] < now:
+                    continue  # slot has already started, so it can't be proposed
                 score = cell['free'] - penalty
                 if best_score is None or score > best_score:
                     best_score = score
                     best_slot = cell
 
-    proposals = Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at')
+    proposals = annotate_conflicts(
+        request.user,
+        Event.objects.filter(circle=circle, status='pending').order_by('-proposed_at'),
+    )
     user_votes = {
         v.event_id: v.choice
         for v in ProposalVote.objects.filter(user=request.user, event__circle=circle)
     }
+
+    # --- Circle analytics (last 30 days) ---
+    cutoff = timezone.now() - timedelta(days=30)
+
+    # Approving a proposal copies the event onto each yes-voter's calendar, so count
+    # distinct (name, start, end) rather than rows. The circle export uses the same dedupe.
+    events_this_month = (
+        Event.objects
+        .filter(circle=circle, status='approved', proposed_at__gte=cutoff)
+        .values('event_name', 'start_time', 'end_time')
+        .distinct()
+        .count()
+    )
+
+    active_members = (
+        ProposalVote.objects
+        .filter(event__circle=circle, voted_at__gte=cutoff, user_id__in=member_ids)
+        .values('user_id')
+        .distinct()
+        .count()
+    )
+    active_member_pct = round(active_members * 100 / total_members) if total_members else 0
 
     return render(request, 'circles_app/circle_detail.html', {
         'circle': circle,
@@ -244,6 +275,8 @@ def circle_detail_view(request, circle_id):
         'user_votes': user_votes,
         'best_slot': best_slot,
         'members_info': members_info,
+        'events_this_month': events_this_month,
+        'active_member_pct': active_member_pct,
     })
 
 
@@ -290,10 +323,43 @@ def home_view(request):
     upcoming_events = Event.objects.filter(
         user=request.user, start_time__gte=timezone.now(),
     ).order_by('start_time')[:5]
+
+    # Yes / No poll votes in one query
+    vote_totals = ProposalVote.objects.filter(user=request.user).aggregate(
+        yes=Count('id', filter=Q(choice='yes')),
+        no=Count('id', filter=Q(choice='no')),
+    )
+
+    # Top 3 circles by activity = approved events on the user's own calendar
+    # for that circle + poll votes the user cast in it.
+    # distinct=True is required because both counts join through multi-valued relations.
+    top_circles = (
+        Circle.objects
+        .filter(memberships__user=request.user)
+        .annotate(
+            event_count=Count(
+                'circle_events',
+                filter=Q(circle_events__user=request.user, circle_events__status='approved'),
+                distinct=True,
+            ),
+            vote_count=Count(
+                'circle_events__votes',
+                filter=Q(circle_events__votes__user=request.user),
+                distinct=True,
+            ),
+        )
+        .annotate(activity=F('event_count') + F('vote_count'))
+        .filter(activity__gt=0)
+        .order_by('-activity', 'circle_name')[:3]
+    )
+
     return render(request, 'circles_app/home.html', {
         'memberships': user_memberships, 'join_form': join_form,
         'upcoming_events': upcoming_events,
         'quick_event_form': CalendarForm(),
+        'user_accepted_polls': vote_totals['yes'],
+        'user_rejected_polls': vote_totals['no'],
+        'top_circles': top_circles,
     })
 
 
@@ -322,7 +388,24 @@ def propose_event_view(request, circle_id):
             )
             return redirect('circle_detail', circle_id=circle.id)
     else:
-        form = EventProposalForm()
+        initial = {}
+        try:
+            day = datetime.strptime(request.GET.get('date', ''), '%Y-%m-%d').date()
+            start_t = datetime.strptime(request.GET.get('start_time', ''), '%H:%M').time()
+            end_t = datetime.strptime(request.GET.get('end_time', ''), '%H:%M').time()
+        except ValueError:
+            pass  # missing or malformed params: show the normal empty form
+        else:
+            start_dt = datetime.combine(day, start_t)
+            end_dt = datetime.combine(day, end_t)
+            if end_dt <= start_dt:
+                # e.g. a 23:00 slot ends at 00:00 the next day
+                end_dt += timedelta(days=1)
+            initial = {
+                'start_time': start_dt.strftime('%Y-%m-%dT%H:%M'),
+                'end_time': end_dt.strftime('%Y-%m-%dT%H:%M'),
+            }
+        form = EventProposalForm(initial=initial)
 
     return render(request, 'circles_app/propose_event.html', {'form': form, 'circle': circle})
 
@@ -649,3 +732,23 @@ def export_circle_calendar_view(request, circle_id):
     response = HttpResponse(cal.to_ical(), content_type='text/calendar')
     response['Content-Disposition'] = f'attachment; filename="{circle.circle_name}.ics"'
     return response
+
+@login_required
+def check_conflicts_view(request):
+    """Live conflict check while a user fills out the propose-event form."""
+    try:
+        start = timezone.make_aware(datetime.strptime(request.GET.get('start', ''), '%Y-%m-%dT%H:%M'))
+        end = timezone.make_aware(datetime.strptime(request.GET.get('end', ''), '%Y-%m-%dT%H:%M'))
+    except ValueError:
+        return JsonResponse({'conflicts': []})
+    if start >= end:
+        return JsonResponse({'conflicts': []})
+
+    return JsonResponse({'conflicts': [
+        {
+            'name': e.event_name,
+            'start': timezone.localtime(e.start_time).strftime('%b %d, %H:%M'),
+            'end': timezone.localtime(e.end_time).strftime('%H:%M'),
+        }
+        for e in find_conflicts(request.user, start, end)
+    ]})

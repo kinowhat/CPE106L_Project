@@ -7,10 +7,47 @@
         <h1 class="text-3xl font-light mb-1">Propose an Event</h1>
         <p class="text-sm opacity-70 mb-2">for {{ circle.circle_name }}</p>
         {{ form.as_p }}
+        <div id="conflict-warning" role="alert" class="alert alert-warning rounded-2xl hidden mb-2">
+            <div>
+                <p class="font-medium text-sm">⚠ Time Conflict on your calendar</p>
+                <ul id="conflict-list" class="text-xs"></ul>
+            </div>
+        </div>
         <div class="flex gap-2 mt-2">
             <a href="{% url 'circle_detail' circle.id %}" class="btn flex-1">Back</a>
             <button type="submit" class="btn btn-primary flex-1">Propose Event</button>
         </div>
     </form>
 </div>
+<script>
+(function () {
+    const startEl = document.getElementById('id_start_time');
+    const endEl = document.getElementById('id_end_time');
+    const box = document.getElementById('conflict-warning');
+    const list = document.getElementById('conflict-list');
+    const url = "{% url 'check_conflicts' %}";
+    let timer;
+
+    async function check() {
+        if (!startEl.value || !endEl.value) { box.classList.add('hidden'); return; }
+        try {
+            const res = await fetch(url + '?start=' + encodeURIComponent(startEl.value) +
+                                    '&end=' + encodeURIComponent(endEl.value));
+            const data = await res.json();
+            list.replaceChildren();
+            data.conflicts.forEach(function (c) {
+                const li = document.createElement('li');
+                li.textContent = c.name + ' (' + c.start + '–' + c.end + ')';  // textContent: event names can come from imported .ics files
+                list.appendChild(li);
+            });
+            box.classList.toggle('hidden', data.conflicts.length === 0);
+        } catch (e) { box.classList.add('hidden'); }
+    }
+
+    [startEl, endEl].forEach(function (el) {
+        el.addEventListener('change', function () { clearTimeout(timer); timer = setTimeout(check, 250); });
+    });
+    check();
+})();
+</script>
 {% endblock %}

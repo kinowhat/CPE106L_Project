@@ -45,6 +45,17 @@
                         <p class="text-sm opacity-70">
                             {{ proposal.start_time|date:"M d, H:i" }} – {{ proposal.end_time|date:"M d, H:i" }}
                         </p>
+                        {% if proposal.conflicts %}
+                        <div class="flex flex-col gap-1">
+                            <div class="tooltip tooltip-right w-fit" data-tip="Overlaps with: {{ proposal.conflict_summary }}">
+                                <span class="badge badge-warning badge-sm gap-1">⚠ Time Conflict</span>
+                            </div>
+                            <p class="text-xs opacity-80">
+                                Conflicts with:
+                                {% for c in proposal.conflicts|slice:":3" %}<span class="font-medium">{{ c.event_name }}</span> ({{ c.start_time|date:"M d H:i" }}–{{ c.end_time|date:"H:i" }}){% if not forloop.last %}, {% endif %}{% endfor %}{% if proposal.conflicts|length > 3 %} +{{ proposal.conflicts|length|add:"-3" }} more{% endif %}
+                            </p>
+                        </div>
+                        {% endif %}
                         {% if proposal.proposed_by %}
                         <p class="text-xs opacity-60">Proposed by {{ proposal.proposed_by.username }}</p>
                         {% endif %}
@@ -69,7 +80,8 @@
                         <form method="POST" action="{% url 'vote_proposal' proposal.id %}" class="card-actions" style="margin-top: 0.25rem;">
                             {% csrf_token %}
                             <button type="submit" name="choice" value="yes"
-                                    class="btn btn-sm {% if user_votes|get_item:proposal.id == 'yes' %}btn-primary{% endif %}">Yes</button>
+                                {% if proposal.conflicts %}onclick="return confirm('This overlaps with: {{ proposal.conflict_summary|escapejs }}. Vote Yes anyway?');"{% endif %}
+                                class="btn btn-sm {% if user_votes|get_item:proposal.id == 'yes' %}btn-primary{% endif %}">Yes</button>
                             <button type="submit" name="choice" value="no"
                                     class="btn btn-sm {% if user_votes|get_item:proposal.id == 'no' %}btn-error{% endif %}">No</button>
                         </form>
@@ -86,14 +98,21 @@
             </div>
         </section>
 
-        <!-- Best time to meet banner -->
+        <!-- Best time banner -->
         {% if best_slot and best_slot.free > 0 %}
-        <div class="rounded-3xl bg-primary" style="padding: 1.25rem;">
-            <p class="text-sm opacity-70">Best time to meet this week</p>
-            <p class="text-xl font-medium">
-                {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
-            </p>
-            <p class="text-sm">{{ best_slot.free }} of {{ best_slot.total }} members free</p>
+        <div class="bg-warning/20 border border-warning/40 text-warning-content rounded-3xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+                <p class="text-xs uppercase font-semibold opacity-70 tracking-wide">Best time to meet this week</p>
+                <p class="text-xl font-bold mt-1">
+                    {{ best_slot.start|date:"D, M d — H:i" }} to {{ best_slot.end|date:"H:i" }}
+                </p>
+                <p class="text-sm opacity-80 mt-0.5">{{ best_slot.free }} of {{ best_slot.total }} members free</p>
+            </div>
+
+            <a href="{% url 'propose_event' circle.id %}?date={{ best_slot.start|date:'Y-m-d' }}&start_time={{ best_slot.start|date:'H:i' }}&end_time={{ best_slot.end|date:'H:i' }}"
+            class="btn btn-warning rounded-full shadow-sm shrink-0 font-medium">
+                + Propose Event at This Time
+            </a>
         </div>
         {% endif %}
 
@@ -232,31 +251,34 @@
             </div>
         </div>
 
-        <!-- At a glance -->
-        <div class="card bg-base-100">
-            <div class="card-body" style="gap: 0.25rem;">
-                <h2 class="card-title" style="margin-bottom: 0.25rem;">At a glance</h2>
-                <div style="display: flex; justify-between; justify-content: space-between; align-items: center; padding-top: 0.25rem; padding-bottom: 0.25rem;" class="text-sm">
-                    <span class="opacity-70">Members</span>
-                    <span class="font-medium">{{ memberships|length }}</span>
-                </div>
-                <div style="display: flex; justify-between; justify-content: space-between; align-items: center; padding-top: 0.25rem; padding-bottom: 0.25rem;" class="text-sm">
-                    <span class="opacity-70">Open proposals</span>
-                    <span class="font-medium">{{ proposals|length }}</span>
-                </div>
-                {% if best_slot and best_slot.free > 0 %}
-                <div style="display: flex; justify-between; justify-content: space-between; align-items: center; padding-top: 0.25rem; padding-bottom: 0.25rem;" class="text-sm">
-                    <span class="opacity-70">Best slot free</span>
-                    <span class="font-medium">{{ best_slot.free }}/{{ best_slot.total }}</span>
-                </div>
-                {% endif %}
-            </div>
+<!-- At a glance -->
+<div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-3">
+    <h3 class="text-xl font-bold">At a glance</h3>
+    <div class="flex flex-col gap-2 text-sm">
+        <div class="flex justify-between items-center">
+            <span class="opacity-70">Members</span>
+            <span class="font-medium">{{ memberships|length }}</span>
         </div>
-
-    </aside>
-
+        <div class="flex justify-between items-center">
+            <span class="opacity-70">Open proposals</span>
+            <span class="font-medium">{{ proposals|length }}</span>
+        </div>
+        {% if best_slot and best_slot.free > 0 %}
+        <div class="flex justify-between items-center">
+            <span class="opacity-70">Best slot free</span>
+            <span class="font-medium">{{ best_slot.free }}/{{ best_slot.total }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between items-center">
+            <span class="opacity-70">Events this month</span>
+            <span class="font-medium">{{ events_this_month }}</span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span class="opacity-70">Member engagement</span>
+            <span class="font-medium">{{ active_member_pct }}%</span>
+        </div>
+    </div>
 </div>
-
 <style>
     /* Responsive Breakpoint Fallback for Screen Sizes >= 1024px */
     @media (min-width: 1024px) {

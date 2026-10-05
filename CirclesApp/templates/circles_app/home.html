@@ -99,26 +99,66 @@
         </div>
     </div>
 
-    <!-- Sidebar: What's coming up -->
-    {% if upcoming_events %}
+    <!-- Sidebar -->
     <aside class="w-full lg:w-72 shrink-0">
-        <div class="card bg-base-100 lg:sticky lg:top-4">
-            <div class="card-body">
-                <h2 class="text-lg font-medium mb-1">What's coming up</h2>
-                <div class="flex flex-col gap-2">
-                    {% for e in upcoming_events %}
-                    <div class="border-b border-base-200 last:border-0 pb-2 last:pb-0">
-                        <p class="font-medium text-sm">{{ e.event_name }}</p>
-                        <p class="text-xs opacity-70">{{ e.start_time|date:"D, M d — H:i" }}{% if e.circle %} · {{ e.circle.circle_name }}{% endif %}</p>
+        <div class="flex flex-col gap-4 lg:sticky lg:top-4">
+
+            <!-- Your Stats -->
+            <div class="bg-base-100 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
+                <h3 class="text-xl font-bold">Your Stats</h3>
+
+                <!-- Poll Participation Stats -->
+                <div class="flex items-center justify-between bg-base-200/50 p-3 rounded-2xl text-sm">
+                    <div>
+                        <p class="text-xs opacity-60 font-semibold uppercase">Poll Votes</p>
+                        <p class="font-bold text-base mt-0.5">
+                            <span class="text-success">{{ user_accepted_polls }} Yes</span> /
+                            <span class="text-error">{{ user_rejected_polls }} No</span>
+                        </p>
                     </div>
-                    {% endfor %}
+                    <div class="text-right">
+                        <p class="text-xs opacity-60 font-semibold uppercase">Total</p>
+                        <p class="font-bold text-base mt-0.5">{{ user_accepted_polls|add:user_rejected_polls }}</p>
+                    </div>
+                </div>
+
+                <!-- Most Active Circles -->
+                <div>
+                    <p class="text-xs opacity-60 font-semibold uppercase mb-2">Top Circles</p>
+                    {% if top_circles %}
+                        <div class="flex flex-col gap-2">
+                            {% for circle in top_circles %}
+                                <a href="{% url 'circle_detail' circle.id %}" class="flex items-center justify-between p-2 rounded-xl hover:bg-base-200 transition text-sm">
+                                    <span class="font-medium truncate">{{ circle.circle_name }}</span>
+                                    <span class="badge badge-neutral badge-sm shrink-0">{{ circle.event_count }} events</span>
+                                </a>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-xs opacity-60">No circle activity yet.</p>
+                    {% endif %}
                 </div>
             </div>
+
+            <!-- What's coming up -->
+            {% if upcoming_events %}
+            <div class="card bg-base-100">
+                <div class="card-body">
+                    <h2 class="text-lg font-medium mb-1">What's coming up</h2>
+                    <div class="flex flex-col gap-2">
+                        {% for e in upcoming_events %}
+                        <div class="border-b border-base-200 last:border-0 pb-2 last:pb-0">
+                            <p class="font-medium text-sm">{{ e.event_name }}</p>
+                            <p class="text-xs opacity-70">{{ e.start_time|date:"D, M d — H:i" }}{% if e.circle %} · {{ e.circle.circle_name }}{% endif %}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </aside>
-    {% endif %}
-
-</div>
 <script>
 document.getElementById('poll-go').addEventListener('click', function () {
     var id = document.getElementById('poll-circle-select').value;

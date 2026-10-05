@@ -25,4 +25,5 @@ urlpatterns = [
     path('circles/<int:circle_id>/quick_approve/', views.quick_approve_view, name='quick_approve'),
     path('circles/<int:circle_id>/export/', views.export_circle_calendar_view, name='export_circle_calendar'),
     path('account_settings', views.account_settings_view, name='account_settings'),
+        path('conflicts/check/', views.check_conflicts_view, name='check_conflicts'),
 ]
