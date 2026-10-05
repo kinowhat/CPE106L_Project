@@ -38,6 +38,20 @@ class Event(models.Model):
         ('approved', 'Approved'),
     ]
 
+    POLL_MAJORITY_ALL = 'majority_all'
+    POLL_MAJORITY_VOTERS = 'majority_voters'
+    POLL_OPTIN = 'optin'
+    POLL_TYPE_CHOICES = [
+        (POLL_MAJORITY_ALL, 'Majority (All Members)'),
+        (POLL_MAJORITY_VOTERS, 'Majority (Voters Only)'),
+        (POLL_OPTIN, 'Opt-in (Voters Only)'),
+    ]
+    poll_type = models.CharField(
+        max_length=20, choices=POLL_TYPE_CHOICES, default=POLL_MAJORITY_VOTERS,
+        help_text="Majority types need over 50% Yes. Opt-in has no threshold: it resolves once "
+                  "everyone has voted or the organizer finalizes it.",
+    )
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     circle = models.ForeignKey(
         Circle, on_delete=models.CASCADE, null=True, blank=True, related_name='circle_events'

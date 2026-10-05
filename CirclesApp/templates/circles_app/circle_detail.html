@@ -24,77 +24,103 @@
     <!-- LEFT COLUMN (Spans 8 of 12 columns on wide screens) -->
     <div style="grid-column: span 12 / span 12; min-width: 0; display: flex; flex-direction: column; gap: 1.5rem;" class="lg:!col-span-8">
 
-        <!-- Proposed events -->
-        <section>
-            <h2 class="text-2xl font-light" style="margin-bottom: 1rem;">Proposed Events</h2>
+<!-- Proposed events -->
+<section>
+    <h2 class="text-2xl font-light" style="margin-bottom: 1rem;">Proposed Events</h2>
 
-            <div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
-                {% for proposal in proposals %}
-                <div class="card bg-base-100">
-                    <div class="card-body" style="gap: 0.75rem;">
+    <div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));">
+        {% for proposal in proposals %}
+        <div class="card bg-base-100 poll-card" data-poll-id="{{ proposal.id }}" style="min-width: 0;">
+            <div class="card-body" style="gap: 0.75rem;">
 
-                        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;">
-                            <h3 class="card-title">{{ proposal.event_name }}</h3>
-                            {% if proposal.budget_label %}
-                            <span class="badge bg-accent border-0" style="flex-shrink: 0;">{{ proposal.budget_label }}</span>
-                            {% endif %}
-                        </div>
-
-                        <p class="text-sm opacity-70">
-                            {{ proposal.start_time|date:"M d, H:i" }} – {{ proposal.end_time|date:"M d, H:i" }}
-                        </p>
-                        {% if proposal.conflicts %}
-                        <div class="flex flex-col gap-1">
-                            <div class="tooltip tooltip-right w-fit" data-tip="Overlaps with: {{ proposal.conflict_summary }}">
-                                <span class="badge badge-warning badge-sm gap-1">⚠ Time Conflict</span>
-                            </div>
-                            <p class="text-xs opacity-80">
-                                Conflicts with:
-                                {% for c in proposal.conflicts|slice:":3" %}<span class="font-medium">{{ c.event_name }}</span> ({{ c.start_time|date:"M d H:i" }}–{{ c.end_time|date:"H:i" }}){% if not forloop.last %}, {% endif %}{% endfor %}{% if proposal.conflicts|length > 3 %} +{{ proposal.conflicts|length|add:"-3" }} more{% endif %}
-                            </p>
-                        </div>
-                        {% endif %}
-                        {% if proposal.proposed_by %}
-                        <p class="text-xs opacity-60">Proposed by {{ proposal.proposed_by.username }}</p>
-                        {% endif %}
-                        {% if proposal.event_description %}<p class="text-sm">{{ proposal.event_description }}</p>{% endif %}
-
-                        <!-- Vote progress -->
-                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            <div style="display: flex; align-items: center; gap: 0.5rem;" class="text-xs">
-                                <span style="width: 2rem;">Yes</span>
-                                <progress class="progress progress-success" style="flex: 1 1 0%;" value="{{ proposal.yes_votes }}" max="{{ proposal.total_members }}"></progress>
-                                <span style="width: 1.5rem; text-align: right;">{{ proposal.yes_votes }}</span>
-                            </div>
-                            <div style="display: flex; align-items: center; gap: 0.5rem;" class="text-xs">
-                                <span style="width: 2rem;">No</span>
-                                <progress class="progress progress-error" style="flex: 1 1 0%;" value="{{ proposal.no_votes }}" max="{{ proposal.total_members }}"></progress>
-                                <span style="width: 1.5rem; text-align: right;">{{ proposal.no_votes }}</span>
-                            </div>
-                            <p class="text-xs opacity-70">Needs a majority of {{ proposal.total_members }} members</p>
-                        </div>
-
-                        <!-- Quick vote -->
-                        <form method="POST" action="{% url 'vote_proposal' proposal.id %}" class="card-actions" style="margin-top: 0.25rem;">
-                            {% csrf_token %}
-                            <button type="submit" name="choice" value="yes"
-                                {% if proposal.conflicts %}onclick="return confirm('This overlaps with: {{ proposal.conflict_summary|escapejs }}. Vote Yes anyway?');"{% endif %}
-                                class="btn btn-sm {% if user_votes|get_item:proposal.id == 'yes' %}btn-primary{% endif %}">Yes</button>
-                            <button type="submit" name="choice" value="no"
-                                    class="btn btn-sm {% if user_votes|get_item:proposal.id == 'no' %}btn-error{% endif %}">No</button>
-                        </form>
-
-                    </div>
+                <!-- Header -->
+                <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem;">
+                    <h3 class="card-title">{{ proposal.event_name }}</h3>
+                    <span class="badge badge-sm bg-accent border-0" style="flex-shrink: 0;">{{ proposal.get_poll_type_display }}</span>
                 </div>
-                {% empty %}
-                <div class="card bg-base-100">
-                    <div class="card-body items-center text-center">
-                        <p class="opacity-70">No events proposed yet.</p>
+
+                <!-- Details -->
+                <p class="text-sm opacity-70" style="flex-grow: 0;">
+                    {{ proposal.start_time|date:"M d, H:i" }} – {{ proposal.end_time|date:"M d, H:i" }}
+                </p>
+
+                {% if proposal.conflicts %}
+                <div class="flex flex-col gap-1">
+                    <div class="tooltip tooltip-right w-fit" data-tip="Overlaps with: {{ proposal.conflict_summary }}">
+                        <span class="badge badge-warning badge-sm gap-1">⚠ Time Conflict</span>
                     </div>
+                    <p class="text-xs opacity-80" style="flex-grow: 0;">
+                        Conflicts with:
+                        {% for c in proposal.conflicts|slice:":3" %}<span class="font-medium">{{ c.event_name }}</span> ({{ c.start_time|date:"M d H:i" }}–{{ c.end_time|date:"H:i" }}){% if not forloop.last %}, {% endif %}{% endfor %}{% if proposal.conflicts|length > 3 %} +{{ proposal.conflicts|length|add:"-3" }} more{% endif %}
+                    </p>
                 </div>
-                {% endfor %}
+                {% endif %}
+
+                {% if proposal.proposed_by %}
+                <p class="text-xs opacity-60" style="flex-grow: 0;">Proposed by {{ proposal.proposed_by.username }}</p>
+                {% endif %}
+                {% if proposal.event_description %}
+                <p class="text-sm" style="flex-grow: 0;">{{ proposal.event_description }}</p>
+                {% endif %}
+
+                <!-- Vote progress -->
+                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem;" class="text-xs">
+                        <span style="width: 2rem;">Yes</span>
+                        <progress data-role="yes-bar" class="progress progress-success" style="flex: 1 1 0%; min-width: 0;" value="{{ proposal.yes_votes }}" max="{{ proposal.total_members }}"></progress>
+                        <span data-role="yes-count" style="width: 1.5rem; text-align: right;">{{ proposal.yes_votes }}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;" class="text-xs">
+                        <span style="width: 2rem;">No</span>
+                        <progress data-role="no-bar" class="progress progress-error" style="flex: 1 1 0%; min-width: 0;" value="{{ proposal.no_votes }}" max="{{ proposal.total_members }}"></progress>
+                        <span data-role="no-count" style="width: 1.5rem; text-align: right;">{{ proposal.no_votes }}</span>
+                    </div>
+                    <p class="text-xs opacity-70" style="flex-grow: 0;">
+                        {% if proposal.poll_type == 'optin' %}
+                            No threshold. Resolves when everyone has voted or the organizer finalizes it. Only Yes voters get the event.
+                        {% elif proposal.poll_type == 'majority_all' %}
+                            Needs a majority of {{ proposal.total_members }} members. Added to everyone's calendar.
+                        {% else %}
+                            Needs a majority of {{ proposal.total_members }} members. Added only for Yes voters.
+                        {% endif %}
+                    </p>
+                </div>
+
+                <!-- Status message (filled by the AJAX script) -->
+                <p class="text-xs opacity-70" data-role="poll-msg" aria-live="polite" style="flex-grow: 0; min-height: 1rem;"></p>
+
+                <!-- Footer: every voting control lives here, inside the card -->
+                <div class="card-actions" style="margin-top: auto; padding-top: 0.75rem; border-top: 1px solid var(--color-base-300); align-items: center; flex-wrap: wrap;">
+                    <form method="POST" action="{% url 'vote_proposal' proposal.id %}" class="poll-vote-form" style="display: flex; gap: 0.5rem;">
+                        {% csrf_token %}
+                        <button type="submit" name="choice" value="yes" data-choice="yes"
+                            {% if proposal.conflicts %}onclick="return confirm('This overlaps with: {{ proposal.conflict_summary|escapejs }}. Vote Yes anyway?');"{% endif %}
+                            class="btn btn-sm {% if user_votes|get_item:proposal.id == 'yes' %}btn-primary{% endif %}">Yes</button>
+                        <button type="submit" name="choice" value="no" data-choice="no"
+                            class="btn btn-sm {% if user_votes|get_item:proposal.id == 'no' %}btn-error{% endif %}">No</button>
+                    </form>
+
+                    {% if proposal.poll_type == 'optin' %}
+                    {% if is_owner or proposal.proposed_by == request.user %}
+                    <form method="POST" action="{% url 'finalize_poll' proposal.id %}" style="margin-left: auto;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-neutral">Finalize now</button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+
+            </div><!-- /card-body -->
+        </div><!-- /card -->
+        {% empty %}
+        <div class="card bg-base-100">
+            <div class="card-body items-center text-center">
+                <p class="opacity-70">No events proposed yet.</p>
             </div>
-        </section>
+        </div>
+        {% endfor %}
+    </div><!-- /grid -->
+</section>
 
         <!-- Best time banner -->
         {% if best_slot and best_slot.free > 0 %}
@@ -308,5 +334,40 @@
         aside.lg\:\!col-span-4 { grid-column: span 4 / span 4 !important; }
     }
 </style>
+
+<script>
+document.querySelectorAll('.poll-vote-form').forEach(function (form) {
+    form.addEventListener('submit', async function (e) {
+        e.preventDefault();
+        const card = form.closest('.poll-card');
+        const msg = card.querySelector('[data-role="poll-msg"]');
+        const body = new FormData(form, e.submitter);   // build before disabling buttons
+        const buttons = form.querySelectorAll('button');
+        buttons.forEach(b => b.disabled = true);
+        try {
+            const res = await fetch(form.action, {
+                method: 'POST', body: body,
+                headers: {'X-Requested-With': 'XMLHttpRequest'},
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || 'Vote failed.');
+            if (data.resolved) { window.location.reload(); return; }  // poll closed: show server state + flash message
+
+            ['yes', 'no'].forEach(function (k) {
+                const bar = card.querySelector('[data-role="' + k + '-bar"]');
+                bar.max = data.total; bar.value = data[k];
+                card.querySelector('[data-role="' + k + '-count"]').textContent = data[k];
+            });
+            card.querySelector('[data-choice="yes"]').classList.toggle('btn-primary', data.choice === 'yes');
+            card.querySelector('[data-choice="no"]').classList.toggle('btn-error', data.choice === 'no');
+            msg.textContent = data.message;
+        } catch (err) {
+            msg.textContent = err.message;
+        } finally {
+            buttons.forEach(b => b.disabled = false);
+        }
+    });
+});
+</script>
 
 {% endblock %}

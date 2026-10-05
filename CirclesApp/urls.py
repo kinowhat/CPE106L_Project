@@ -27,6 +27,7 @@ urlpatterns = [
     path('account_settings', views.account_settings_view, name='account_settings'),
     path('conflicts/check/', views.check_conflicts_view, name='check_conflicts'),
     path('free/toggle/', views.toggle_free_status_view, name='toggle_free_status'),
+    path('proposals/<int:proposal_id>/finalize/', views.finalize_poll_view, name='finalize_poll'),
 
     # Circle owner management
     path('circles/<int:circle_id>/members/<int:member_id>/transfer/', views.transfer_ownership, name='transfer_ownership'),

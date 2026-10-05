@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from . forms import (
     RegisterForm, CircleForm, CalendarForm, JoinCircleForm, EventProposalForm,
     ProfileForm, EventForm, ICSUploadForm, AccountForm, DeleteAccountForm,
+    PollProposalForm
 )
 from . models import Circle, Membership, Event, ProposalVote, UserProfile, create_code
 from django.shortcuts import get_object_or_404
@@ -19,6 +20,8 @@ from .conflicts import annotate_conflicts, find_conflicts
 from django.db.models import Count, F, Q
 from django.db import transaction
 from django.views.decorators.http import require_POST
+from .forms import PollProposalForm   # add to the existing forms import
+from .polls import poll_is_ready, resolve_poll
 
 HOURS = range(0, 24)
 
@@ -390,14 +393,11 @@ def home_view(request):
 @login_required
 def propose_event_view(request, circle_id):
     circle = get_object_or_404(Circle, id=circle_id)
-    is_member = Membership.objects.filter(user=request.user, circle=circle).exists()
-    if not is_member:
+    if not Membership.objects.filter(user=request.user, circle=circle).exists():
         raise Http404
-    is_owner = Membership.objects.filter(user=request.user, circle=circle, role='owner').exists()
-    memberships = circle.memberships.select_related('user', 'user__profile')
 
     if request.method == "POST":
-        form = EventProposalForm(request.POST)
+        form = PollProposalForm(request.POST)
         if form.is_valid():
             proposal = form.save(commit=False)
             proposal.circle = circle
@@ -420,21 +420,19 @@ def propose_event_view(request, circle_id):
             start_t = datetime.strptime(request.GET.get('start_time', ''), '%H:%M').time()
             end_t = datetime.strptime(request.GET.get('end_time', ''), '%H:%M').time()
         except ValueError:
-            pass  # missing or malformed params: show the normal empty form
+            pass
         else:
             start_dt = datetime.combine(day, start_t)
             end_dt = datetime.combine(day, end_t)
             if end_dt <= start_dt:
-                # e.g. a 23:00 slot ends at 00:00 the next day
                 end_dt += timedelta(days=1)
             initial = {
                 'start_time': start_dt.strftime('%Y-%m-%dT%H:%M'),
                 'end_time': end_dt.strftime('%Y-%m-%dT%H:%M'),
             }
-        form = EventProposalForm(initial=initial)
+        form = PollProposalForm(initial=initial)
 
     return render(request, 'circles_app/propose_event.html', {'form': form, 'circle': circle})
-
 def _redirect_after_vote(request, proposal):
     next_url = request.POST.get('next')
     if next_url and url_has_allowed_host_and_scheme(
@@ -443,56 +441,65 @@ def _redirect_after_vote(request, proposal):
         return redirect(next_url)
     return redirect('circle_detail', circle_id=proposal.circle.id)
 
+def _wants_json(request):
+    return request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+
+def _poll_payload(proposal, message, choice=None, resolved=False):
+    return {
+        'message': message, 'choice': choice, 'resolved': resolved,
+        'yes': proposal.yes_votes(), 'no': proposal.no_votes(),
+        'total': proposal.total_members(),
+    }
+
+
+def _notify_targets(proposal, target_ids):
+    emails = list(User.objects.filter(id__in=target_ids).exclude(email='').values_list('email', flat=True))
+    if emails:
+        send_mail(
+            f"Event approved in {proposal.circle.circle_name}",
+            f"'{proposal.event_name}' was added to your calendar.",
+            None, emails, fail_silently=True,
+        )
+
+
+def _resolved_message(proposal, targets):
+    if proposal.poll_type == 'majority_all':
+        return f"'{proposal.event_name}' passed! Added to every member's calendar."
+    return f"'{proposal.event_name}' is set! Added to the calendars of {len(targets)} member(s) who voted yes."
+
 @login_required
 def vote_proposal_view(request, proposal_id):
     proposal = get_object_or_404(Event, id=proposal_id, status='pending')
-    is_member = Membership.objects.filter(user=request.user, circle=proposal.circle).exists()
-    if not is_member:
+    if not Membership.objects.filter(user=request.user, circle=proposal.circle).exists():
         raise Http404
+    if request.method != "POST":
+        return redirect('circle_detail', circle_id=proposal.circle.id)
 
-    if request.method == "POST":
-        choice = request.POST.get('choice')
-        if choice not in ('yes', 'no'):
-            messages.error(request, "Invalid vote.")
-            return _redirect_after_vote(request, proposal)
+    wants_json = _wants_json(request)
 
-        ProposalVote.objects.update_or_create(
-            event=proposal, user=request.user, defaults={'choice': choice}
-        )
+    def respond(message, level='success', status=200, **extra):
+        if wants_json:
+            return JsonResponse(_poll_payload(proposal, message, **extra), status=status)
+        getattr(messages, level)(request, message)
+        return redirect('circle_detail', circle_id=proposal.circle.id)
 
-        if proposal.has_passed_threshold():
-            proposal.status = 'approved'
-            proposal.user = proposal.proposed_by
-            proposal.save()
+    choice = request.POST.get('choice')
+    if choice not in ('yes', 'no'):
+        return respond("Invalid vote.", 'error', status=400)
 
-            yes_voter_ids = ProposalVote.objects.filter(event=proposal, choice='yes').values_list('user_id', flat=True)
-            members = Membership.objects.filter(
-                circle=proposal.circle, user_id__in=yes_voter_ids
-            ).exclude(user=proposal.proposed_by).select_related('user')
+    ProposalVote.objects.update_or_create(
+        event=proposal, user=request.user, defaults={'choice': choice}
+    )
 
-            for member in members:
-                Event.objects.get_or_create(
-                    user=member.user,
-                    circle=proposal.circle,
-                    start_time=proposal.start_time,
-                    end_time=proposal.end_time,
-                    event_name=proposal.event_name,
-                    defaults={
-                        'event_description': proposal.event_description,
-                        'status': 'approved',
-                        'proposed_by': proposal.proposed_by,
-                    },
-                )
-            messages.success(request, f"'{proposal.event_name}' passed! Added to the calendars of everyone who voted yes.")
-            notify_circle_members(
-                proposal.circle,
-                f"Event approved in {proposal.circle.circle_name}",
-                f"'{proposal.event_name}' passed. It was added to the calendars of members who voted yes.",
-            )
-        else:
-            messages.success(request, "Vote recorded.")
+    if poll_is_ready(proposal):
+        targets = resolve_poll(proposal)
+        if targets:
+            message = _resolved_message(proposal, targets)
+            _notify_targets(proposal, targets)
+            return respond(message, choice=choice, resolved=True)
 
-    return _redirect_after_vote(request, proposal)
+    return respond("Vote recorded.", choice=choice)
 
 @login_required
 def profile_settings_view(request):
@@ -896,3 +903,22 @@ def regenerate_invite_code(request, circle_id):
 
     messages.success(request, "New invite link generated. The old link no longer works.")
     return redirect('circle_detail', circle_id=circle.id)
+
+@login_required
+@require_POST
+def finalize_poll_view(request, proposal_id):
+    """Opt-in polls: proposer or circle owner closes the poll and creates the events."""
+    proposal = get_object_or_404(Event, id=proposal_id, status='pending')
+    membership = get_object_or_404(Membership, user=request.user, circle=proposal.circle)
+    if proposal.proposed_by_id != request.user.id and membership.role != 'owner':
+        raise Http404
+    if proposal.poll_type != 'optin':
+        messages.error(request, "Only opt-in polls can be finalized manually.")
+    else:
+        targets = resolve_poll(proposal)
+        if targets:
+            messages.success(request, _resolved_message(proposal, targets))
+            _notify_targets(proposal, targets)
+        else:
+            messages.warning(request, "Nobody has opted in yet, so there's nothing to add.")
+    return redirect('circle_detail', circle_id=proposal.circle.id)

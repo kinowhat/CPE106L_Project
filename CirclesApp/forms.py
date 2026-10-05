@@ -111,3 +111,13 @@ class EventForm(forms.ModelForm):
         if start_time and end_time and start_time >= end_time:
             raise forms.ValidationError("Start and End times are in the wrong order!")
         return cleaned_data
+
+class PollProposalForm(EventProposalForm):
+    poll_type = forms.ChoiceField(
+        choices=Event.POLL_TYPE_CHOICES,
+        initial=Event.POLL_MAJORITY_VOTERS,
+        label="Resolution type",
+    )
+
+    class Meta(EventProposalForm.Meta):
+        fields = ['event_name', 'event_description', 'start_time', 'end_time', 'poll_type']

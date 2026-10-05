@@ -6,7 +6,12 @@
         {% csrf_token %}
         <h1 class="text-3xl font-light mb-1">Propose an Event</h1>
         <p class="text-sm opacity-70 mb-2">for {{ circle.circle_name }}</p>
+
+        {{ form.non_field_errors }}
         {{ form.as_p }}
+
+        <p id="poll-type-hint" class="text-xs opacity-70" style="flex-grow: 0;"></p>
+
         <div id="conflict-warning" role="alert" class="alert alert-warning rounded-2xl hidden mb-2">
             <div>
                 <p class="font-medium text-sm">⚠ Time Conflict on your calendar</p>
@@ -19,7 +24,22 @@
         </div>
     </form>
 </div>
+
 <script>
+(function () {
+    const select = document.getElementById('id_poll_type');
+    const hint = document.getElementById('poll-type-hint');
+    if (!select) return;
+    const hints = {
+        majority_all: 'Needs over 50% Yes votes. The event is added to every member\'s calendar.',
+        majority_voters: 'Needs over 50% Yes votes. The event is added only for members who voted Yes.',
+        optin: 'No vote threshold. Resolves when everyone has voted or the organizer finalizes it. Only Yes voters get the event.'
+    };
+    function update() { hint.textContent = hints[select.value] || ''; }
+    select.addEventListener('change', update);
+    update();
+})();
+
 (function () {
     const startEl = document.getElementById('id_start_time');
     const endEl = document.getElementById('id_end_time');
@@ -37,7 +57,7 @@
             list.replaceChildren();
             data.conflicts.forEach(function (c) {
                 const li = document.createElement('li');
-                li.textContent = c.name + ' (' + c.start + '–' + c.end + ')';  // textContent: event names can come from imported .ics files
+                li.textContent = c.name + ' (' + c.start + '–' + c.end + ')';
                 list.appendChild(li);
             });
             box.classList.toggle('hidden', data.conflicts.length === 0);
