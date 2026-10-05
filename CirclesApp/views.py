@@ -22,6 +22,9 @@ from django.db import transaction
 from django.views.decorators.http import require_POST
 from .forms import PollProposalForm   # add to the existing forms import
 from .polls import poll_is_ready, resolve_poll
+import io
+import zipfile
+import recurring_ical_events
 
 HOURS = range(0, 24)
 
@@ -117,20 +120,25 @@ def calendar_view(request):
                 start_dt = form.cleaned_data['start_time']
                 duration = form.cleaned_data['end_time'] - start_dt
                 first_day = start_dt.date()
-                created = 0
-                for offset in range(form.cleaned_data['num_weeks'] * 7):
-                    day = first_day + timedelta(days=offset)
-                    if day.weekday() in weekdays:
+                week1_monday = first_day - timedelta(days=first_day.weekday())
+                weekdays.add(first_day.weekday())   # the event you entered is always created
+
+                new_events = []
+                for week in range(form.cleaned_data['num_weeks']):
+                    for wd in sorted(weekdays):
+                        day = week1_monday + timedelta(weeks=week, days=wd)
+                        if day < first_day:
+                            continue
                         occurrence_start = timezone.make_aware(datetime.combine(day, start_dt.time()))
-                        Event.objects.create(
+                        new_events.append(Event(
                             user=request.user,
                             start_time=occurrence_start,
                             end_time=occurrence_start + duration,
                             event_name=form.cleaned_data['event_name'],
                             event_description=form.cleaned_data['event_description'],
-                        )
-                        created += 1
-                messages.success(request, f"Added {created} events.")
+                        ))
+                Event.objects.bulk_create(new_events)
+                messages.success(request, f"Added {len(new_events)} events.")
             else:
                 event = form.save(commit=False)
                 event.user = request.user
@@ -576,42 +584,6 @@ def time_block_detail_view(request, circle_id):
     })
 
 
-@login_required
-def import_calendar_view(request):
-    if request.method == "POST":
-        form = ICSUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            uploaded_file = form.cleaned_data['ics_file']
-            try:
-                cal = ICalCalendar.from_ical(uploaded_file.read())
-            except ValueError:
-                messages.error(request, "That doesn't look like a valid .ics file.")
-                return redirect('import_calendar')
-
-            created = 0
-            for component in cal.walk('VEVENT'):
-                raw_start = component.get('dtstart')
-                raw_end = component.get('dtend')
-                if raw_start is None or raw_end is None:
-                    continue
-
-                start_dt = _ics_value_to_aware(raw_start.dt, end_of_day=False)
-                end_dt = _ics_value_to_aware(raw_end.dt, end_of_day=True)
-
-                Event.objects.create(
-                    user=request.user,
-                    start_time=start_dt,
-                    end_time=end_dt,
-                    event_name=str(component.get('summary', 'Imported Event'))[:32],
-                    event_description=str(component.get('description', '')),
-                )
-                created += 1
-
-            messages.success(request, f"Imported {created} events.")
-            return redirect('calendar')
-    else:
-        form = ICSUploadForm()
-    return render(request, 'circles_app/import_calendar.html', {'form': form})
 
 
 @login_required
@@ -633,12 +605,97 @@ def export_calendar_view(request):
     return response
 
 
-def _ics_value_to_aware(value, end_of_day):
+MAX_IMPORT_EVENTS = 3000
+
+
+def _to_aware(value):
+    """datetime -> aware datetime; date -> midnight in the user's timezone."""
     if isinstance(value, datetime):
         return value if timezone.is_aware(value) else timezone.make_aware(value)
-    clock = time.max if end_of_day else time.min
-    return timezone.make_aware(datetime.combine(value, clock))
+    return timezone.make_aware(datetime.combine(value, time.min))
 
+
+def _event_bounds(comp):
+    start_raw = comp['dtstart'].dt
+    if 'dtend' in comp:
+        end_raw = comp['dtend'].dt
+    elif 'duration' in comp:
+        end_raw = start_raw + comp['duration'].dt
+    elif isinstance(start_raw, datetime):
+        end_raw = start_raw + timedelta(hours=1)
+    else:
+        end_raw = start_raw + timedelta(days=1)   # all-day, DTEND is exclusive
+    start, end = _to_aware(start_raw), _to_aware(end_raw)
+    if end <= start:
+        end = start + timedelta(hours=1)
+    return start, end
+
+
+def _load_calendars(uploaded):
+    data = uploaded.read()
+    if uploaded.name.lower().endswith('.zip'):   # Google's export is a zip of .ics files
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            return [ICalCalendar.from_ical(zf.read(n))
+                    for n in zf.namelist() if n.lower().endswith('.ics')]
+    return [ICalCalendar.from_ical(data)]
+
+
+@login_required
+def import_calendar_view(request):
+    if request.method == "POST":
+        form = ICSUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            try:
+                calendars = _load_calendars(form.cleaned_data['ics_file'])
+            except Exception:
+                messages.error(request, "That doesn't look like a valid .ics (or .zip) file.")
+                return redirect('import_calendar')
+
+            existing = set(
+                Event.objects.filter(user=request.user)
+                .values_list('event_name', 'start_time', 'end_time')
+            )
+            new_events, capped = [], False
+            window_end = timezone.localdate() + timedelta(days=366)   # expand repeats up to 1 year out
+
+            for cal in calendars:
+                starts = []
+                for c in cal.walk('VEVENT'):
+                    if 'dtstart' in c:
+                        d = c['dtstart'].dt
+                        starts.append(d.date() if isinstance(d, datetime) else d)
+                if not starts:
+                    continue
+                occurrences = recurring_ical_events.of(cal).between(min(starts), window_end)
+
+                for comp in occurrences:
+                    if 'dtstart' not in comp or str(comp.get('status', '')).upper() == 'CANCELLED':
+                        continue
+                    start, end = _event_bounds(comp)
+                    name = str(comp.get('summary', 'Imported Event'))[:32]
+                    key = (name, start, end)
+                    if key in existing:
+                        continue
+                    existing.add(key)
+                    new_events.append(Event(
+                        user=request.user, start_time=start, end_time=end,
+                        event_name=name, event_description=str(comp.get('description', '')),
+                    ))
+                    if len(new_events) >= MAX_IMPORT_EVENTS:
+                        capped = True
+                        break
+                if capped:
+                    break
+
+            Event.objects.bulk_create(new_events)
+            msg = f"Imported {len(new_events)} events."
+            if capped:
+                msg += f" Stopped at {MAX_IMPORT_EVENTS}; repeating events were expanded one year ahead."
+            messages.success(request, msg)
+            return redirect('calendar')
+    else:
+        form = ICSUploadForm()
+    return render(request, 'circles_app/import_calendar.html', {'form': form})
 
 # CRUD FUNCTIONS FOR EVENTS, CIRCLES
 
